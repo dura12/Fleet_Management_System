@@ -42,6 +42,11 @@ export class VehiclesService {
       const clash = await this.vehicleModel.findOne({ plateNumber: dto.plateNumber });
       if (clash) throw new ConflictException('Plate number is already in use by another vehicle.');
     }
+    if (dto.status && dto.status !== vehicle.status && vehicle.status === VehicleStatus.ASSIGNED) {
+      throw new BadRequestException(
+        'Cannot change status of an assigned vehicle directly. Use Reassign Vehicle on the active request.',
+      );
+    }
     Object.assign(vehicle, dto);
     return vehicle.save();
   }
@@ -55,9 +60,7 @@ export class VehiclesService {
     return { deleted: true };
   }
 
-  // Used by the requests/assignments service to enforce FR-07: vehicles under
-  // maintenance or inactive can never be assigned.
-  async assertAssignable(vehicleId: string): Promise<VehicleDocument> {
+  async assertAssignable(vehicleId: string, passengerCount?: number): Promise<VehicleDocument> {
     const vehicle = await this.findOne(vehicleId);
     if (vehicle.status === VehicleStatus.UNDER_MAINTENANCE) {
       throw new BadRequestException('This vehicle is under maintenance and cannot be assigned.');
@@ -68,6 +71,11 @@ export class VehiclesService {
     if (vehicle.status === VehicleStatus.ASSIGNED) {
       throw new BadRequestException('This vehicle is already assigned to another trip.');
     }
+    if (passengerCount !== undefined && vehicle.seatingCapacity < passengerCount) {
+      throw new BadRequestException(
+        `This vehicle seats ${vehicle.seatingCapacity} but the request needs ${passengerCount} passengers.`,
+      );
+    }
     return vehicle;
   }
 
@@ -76,6 +84,18 @@ export class VehiclesService {
   }
 
   async markAvailable(vehicleId: string) {
-    await this.vehicleModel.findByIdAndUpdate(vehicleId, { status: VehicleStatus.AVAILABLE });
+    const vehicle = await this.vehicleModel.findByIdAndUpdate(
+      vehicleId,
+      { status: VehicleStatus.AVAILABLE },
+      { new: true },
+    );
+    if (!vehicle) {
+      throw new NotFoundException(`Vehicle ${vehicleId} not found when releasing assignment.`);
+    }
+    return vehicle;
+  }
+
+  async markUnderMaintenance(vehicleId: string) {
+    await this.vehicleModel.findByIdAndUpdate(vehicleId, { status: VehicleStatus.UNDER_MAINTENANCE });
   }
 }

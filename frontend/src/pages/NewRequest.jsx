@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
+import { MAX_PASSENGERS, validatePassengers } from '../utils/requestForm';
 
 export default function NewRequest() {
   const navigate = useNavigate();
-  const [form, setForm] = useState({ destination: '', purpose: '', travelDate: '', numberOfPassengers: 1 });
+  const [form, setForm] = useState({ destination: '', purpose: '', travelDate: '', numberOfPassengers: 1, priority: 'Normal' });
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -13,6 +14,11 @@ export default function NewRequest() {
   const handleSubmit = async (e, alsoSubmit) => {
     e.preventDefault();
     setError('');
+    const passengerError = validatePassengers(form.numberOfPassengers);
+    if (passengerError) {
+      setError(passengerError);
+      return;
+    }
     setSaving(true);
     try {
       const created = await api.createRequest({
@@ -51,7 +57,14 @@ export default function NewRequest() {
           </div>
           <div>
             <label>Number of Passengers</label>
-            <input type="number" min="1" value={form.numberOfPassengers} onChange={update('numberOfPassengers')} required />
+            <input type="number" min="1" max={MAX_PASSENGERS} value={form.numberOfPassengers} onChange={update('numberOfPassengers')} required />
+          </div>
+          <div>
+            <label>Priority</label>
+            <select value={form.priority} onChange={update('priority')}>
+              <option value="Normal">Normal</option>
+              <option value="Urgent">Urgent</option>
+            </select>
           </div>
         </div>
         <div className="btn-row">

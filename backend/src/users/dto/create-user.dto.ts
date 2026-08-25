@@ -17,6 +17,6 @@ export class CreateUserDto {
   @IsNotEmpty({ message: 'Department is required.' })
   department: string;
 
-  @IsEnum(Role, { message: 'Role must be one of: employee, manager, fleet_coordinator.' })
+  @IsEnum(Role, { message: 'Role must be one of: employee, manager, fleet_coordinator, admin.' })
   role: Role;
 }

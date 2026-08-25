@@ -1,4 +1,5 @@
 import { IsEnum, IsInt, IsNotEmpty, IsOptional, Min } from 'class-validator';
+import { Type } from 'class-transformer';
 import { VehicleStatus } from '../../common/status.enum';
 
 export class CreateVehicleDto {
@@ -14,6 +15,12 @@ export class CreateVehicleDto {
   @IsNotEmpty({ message: 'Vehicle type is required.' })
   vehicleType: string;
 
+  @Type(() => Number)
+  @IsInt({ message: 'Seating capacity must be a whole number.' })
+  @Min(1, { message: 'Seating capacity must be at least 1.' })
+  seatingCapacity: number;
+
+  @Type(() => Number)
   @IsInt({ message: 'Current mileage must be a whole number.' })
   @Min(0, { message: 'Current mileage cannot be negative.' })
   currentMileage: number;
@@ -33,7 +40,16 @@ export class UpdateVehicleDto {
   @IsOptional() @IsNotEmpty()
   vehicleType?: string;
 
-  @IsOptional() @IsInt({ message: 'Current mileage must be a whole number.' }) @Min(0)
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt({ message: 'Seating capacity must be a whole number.' })
+  @Min(1)
+  seatingCapacity?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt({ message: 'Current mileage must be a whole number.' })
+  @Min(0)
   currentMileage?: number;
 
   @IsOptional()

@@ -1,6 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema } from 'mongoose';
-import { RequestStatus } from '../common/status.enum';
+import { RequestPriority, RequestStatus } from '../common/status.enum';
 
 export type VehicleRequestDocument = VehicleRequest & Document;
 
@@ -21,8 +21,11 @@ export class VehicleRequest {
   @Prop({ required: true })
   travelDate: Date;
 
-  @Prop({ required: true, min: 1 })
+  @Prop({ required: true, min: 1, max: 50 })
   numberOfPassengers: number;
+
+  @Prop({ required: true, enum: RequestPriority, default: RequestPriority.NORMAL })
+  priority: RequestPriority;
 
   @Prop({ required: true, enum: RequestStatus, default: RequestStatus.DRAFT })
   status: RequestStatus;
@@ -35,6 +38,12 @@ export class VehicleRequest {
 
   @Prop()
   decidedAt?: Date;
+
+  @Prop()
+  submittedAt?: Date;
+
+  @Prop()
+  cancelledAt?: Date;
 }
 
 export const VehicleRequestSchema = SchemaFactory.createForClass(VehicleRequest);

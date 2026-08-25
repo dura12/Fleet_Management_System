@@ -7,7 +7,7 @@ import { Role } from '../common/roles.enum';
 
 @Controller('reports')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(Role.MANAGER, Role.FLEET_COORDINATOR)
+@Roles(Role.ADMIN, Role.MANAGER, Role.FLEET_COORDINATOR)
 export class ReportsController {
   constructor(private reportsService: ReportsService) {}
 

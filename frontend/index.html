@@ -3,7 +3,21 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/otech-logo.png" type="image/png" />
     <title>OTech Fleet Management System</title>
+    <style>
+      /* Static shell paints before JS — improves LCP for brand text */
+      #root:empty::before {
+        content: 'OTech Fleet Management';
+        display: block;
+        padding: 0.45rem 1.5rem;
+        font-family: system-ui, -apple-system, Segoe UI, sans-serif;
+        font-size: 0.82rem;
+        font-weight: 600;
+        color: white;
+        background: #0b0d17;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>

@@ -12,31 +12,31 @@ export class DriversController {
   constructor(private driversService: DriversService) {}
 
   @Post()
-  @Roles(Role.FLEET_COORDINATOR)
+  @Roles(Role.ADMIN, Role.FLEET_COORDINATOR)
   create(@Body() dto: CreateDriverDto) {
     return this.driversService.create(dto);
   }
 
   @Get()
-  @Roles(Role.FLEET_COORDINATOR, Role.MANAGER)
+  @Roles(Role.ADMIN, Role.FLEET_COORDINATOR, Role.MANAGER)
   findAll(@Query('search') search?: string) {
     return this.driversService.findAll(search);
   }
 
   @Get(':id')
-  @Roles(Role.FLEET_COORDINATOR, Role.MANAGER)
+  @Roles(Role.ADMIN, Role.FLEET_COORDINATOR, Role.MANAGER)
   findOne(@Param('id') id: string) {
     return this.driversService.findOne(id);
   }
 
   @Patch(':id')
-  @Roles(Role.FLEET_COORDINATOR)
+  @Roles(Role.ADMIN, Role.FLEET_COORDINATOR)
   update(@Param('id') id: string, @Body() dto: UpdateDriverDto) {
     return this.driversService.update(id, dto);
   }
 
   @Delete(':id')
-  @Roles(Role.FLEET_COORDINATOR)
+  @Roles(Role.ADMIN, Role.FLEET_COORDINATOR)
   remove(@Param('id') id: string) {
     return this.driversService.remove(id);
   }

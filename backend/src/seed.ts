@@ -5,8 +5,10 @@ import * as dotenv from 'dotenv';
 import { UserSchema } from './users/user.schema';
 import { VehicleSchema } from './vehicles/vehicle.schema';
 import { DriverSchema } from './drivers/driver.schema';
+import { VehicleRequestSchema } from './requests/vehicle-request.schema';
+import { VehicleAssignmentSchema } from './assignments/vehicle-assignment.schema';
 import { Role } from './common/roles.enum';
-import { VehicleStatus } from './common/status.enum';
+import { RequestPriority, RequestStatus, VehicleStatus } from './common/status.enum';
 
 dotenv.config();
 
@@ -19,32 +21,134 @@ async function seed() {
   const UserModel = mongoose.model('User', UserSchema);
   const VehicleModel = mongoose.model('Vehicle', VehicleSchema);
   const DriverModel = mongoose.model('Driver', DriverSchema);
+  const RequestModel = mongoose.model('VehicleRequest', VehicleRequestSchema);
+  const AssignmentModel = mongoose.model('VehicleAssignment', VehicleAssignmentSchema);
 
-  await Promise.all([UserModel.deleteMany({}), VehicleModel.deleteMany({}), DriverModel.deleteMany({})]);
+  // Clear all collections so user IDs stay in sync with requests.
+  await Promise.all([
+    AssignmentModel.deleteMany({}),
+    RequestModel.deleteMany({}),
+    UserModel.deleteMany({}),
+    VehicleModel.deleteMany({}),
+    DriverModel.deleteMany({}),
+  ]);
 
   const password = await bcrypt.hash('Password123', 10);
 
-  await UserModel.insertMany([
+  const [admin, employee, manager, coordinator] = await UserModel.insertMany([
+    { employeeId: 'EMP-000', fullName: 'Admin User', email: 'admin@otech.com', passwordHash: password, department: 'IT', role: Role.ADMIN },
     { employeeId: 'EMP-001', fullName: 'Abebe Kebede', email: 'employee@otech.com', passwordHash: password, department: 'Sales', role: Role.EMPLOYEE },
     { employeeId: 'EMP-002', fullName: 'Sara Tesfaye', email: 'manager@otech.com', passwordHash: password, department: 'Sales', role: Role.MANAGER },
     { employeeId: 'EMP-003', fullName: 'Yonas Alemu', email: 'fleet@otech.com', passwordHash: password, department: 'Operations', role: Role.FLEET_COORDINATOR },
   ]);
 
-  await VehicleModel.insertMany([
-    { vehicleId: 'VEH-001', plateNumber: 'AA-12345', model: 'Toyota Hiace', vehicleType: 'Van', currentMileage: 42000, status: VehicleStatus.AVAILABLE },
-    { vehicleId: 'VEH-002', plateNumber: 'AA-54321', model: 'Toyota Corolla', vehicleType: 'Sedan', currentMileage: 18500, status: VehicleStatus.AVAILABLE },
-    { vehicleId: 'VEH-003', plateNumber: 'AA-98765', model: 'Isuzu FRR', vehicleType: 'Truck', currentMileage: 91000, status: VehicleStatus.UNDER_MAINTENANCE },
+  const [van, sedan] = await VehicleModel.insertMany([
+    { vehicleId: 'VEH-001', plateNumber: 'AA-12345', model: 'Toyota Hiace', vehicleType: 'Van', seatingCapacity: 14, currentMileage: 42000, status: VehicleStatus.AVAILABLE },
+    { vehicleId: 'VEH-002', plateNumber: 'AA-54321', model: 'Toyota Corolla', vehicleType: 'Sedan', seatingCapacity: 4, currentMileage: 18500, status: VehicleStatus.AVAILABLE },
+    { vehicleId: 'VEH-003', plateNumber: 'AA-98765', model: 'Isuzu FRR', vehicleType: 'Truck', seatingCapacity: 3, currentMileage: 91000, status: VehicleStatus.UNDER_MAINTENANCE },
   ]);
 
-  await DriverModel.insertMany([
+  const [driver1] = await DriverModel.insertMany([
     { driverId: 'DRV-001', driverName: 'Tesfaye Girma', licenseNumber: 'LIC-1001', licenseExpiry: new Date('2027-06-30'), isActive: true },
     { driverId: 'DRV-002', driverName: 'Meseret Alemayehu', licenseNumber: 'LIC-1002', licenseExpiry: new Date('2025-01-15'), isActive: true },
   ]);
 
+  const travel = (daysFromNow: number) => {
+    const d = new Date();
+    d.setDate(d.getDate() + daysFromNow);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  };
+
+  const [draftReq, submittedReq, approvedReq, assignedReq, completedReq] = await RequestModel.insertMany([
+    {
+      requestNumber: 'REQ-0001',
+      requester: employee._id,
+      destination: 'Bole bulbula',
+      purpose: 'Site visit',
+      travelDate: travel(5),
+      numberOfPassengers: 3,
+      priority: RequestPriority.NORMAL,
+      status: RequestStatus.DRAFT,
+    },
+    {
+      requestNumber: 'REQ-0002',
+      requester: employee._id,
+      destination: 'Gerji',
+      purpose: 'Client meeting',
+      travelDate: travel(7),
+      numberOfPassengers: 1,
+      priority: RequestPriority.NORMAL,
+      status: RequestStatus.SUBMITTED,
+      submittedAt: new Date(),
+    },
+    {
+      requestNumber: 'REQ-0003',
+      requester: employee._id,
+      destination: 'Robe',
+      purpose: 'Travel',
+      travelDate: travel(10),
+      numberOfPassengers: 1,
+      priority: RequestPriority.URGENT,
+      status: RequestStatus.APPROVED,
+      submittedAt: new Date(Date.now() - 86400000),
+      decidedBy: manager._id,
+      decidedAt: new Date(),
+    },
+    {
+      requestNumber: 'REQ-0004',
+      requester: employee._id,
+      destination: 'Northwind Facility',
+      purpose: 'Equipment delivery',
+      travelDate: travel(14),
+      numberOfPassengers: 2,
+      priority: RequestPriority.NORMAL,
+      status: RequestStatus.VEHICLE_ASSIGNED,
+      submittedAt: new Date(Date.now() - 2 * 86400000),
+      decidedBy: manager._id,
+      decidedAt: new Date(Date.now() - 86400000),
+    },
+    {
+      requestNumber: 'REQ-0005',
+      requester: employee._id,
+      destination: 'Bole',
+      purpose: 'Completed trip',
+      travelDate: travel(-3),
+      numberOfPassengers: 1,
+      priority: RequestPriority.NORMAL,
+      status: RequestStatus.COMPLETED,
+      submittedAt: new Date(Date.now() - 10 * 86400000),
+      decidedBy: manager._id,
+      decidedAt: new Date(Date.now() - 9 * 86400000),
+    },
+  ]);
+
+  await VehicleModel.findByIdAndUpdate(van._id, { status: VehicleStatus.ASSIGNED });
+
+  await AssignmentModel.insertMany([
+    {
+      assignmentId: 'ASG-0001',
+      request: assignedReq._id,
+      vehicle: van._id,
+      driver: driver1._id,
+      assignmentDate: new Date(),
+    },
+    {
+      assignmentId: 'ASG-0002',
+      request: completedReq._id,
+      vehicle: sedan._id,
+      driver: driver1._id,
+      assignmentDate: new Date(Date.now() - 8 * 86400000),
+      returnedAt: new Date(Date.now() - 3 * 86400000),
+    },
+  ]);
+
   console.log('Seed complete. Demo accounts (password: Password123):');
-  console.log('  employee@otech.com   (Employee)');
+  console.log('  admin@otech.com      (Administrator)');
+  console.log('  employee@otech.com   (Employee) — 5 sample requests');
   console.log('  manager@otech.com    (Manager)');
   console.log('  fleet@otech.com      (Fleet Coordinator)');
+  console.log('Note: Re-running seed clears ALL users, vehicles, drivers, requests, and assignments.');
   console.log('Note: DRV-002 has an expired license on purpose, to demonstrate the assignment validation.');
 
   await mongoose.disconnect();

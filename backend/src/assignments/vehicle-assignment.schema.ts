@@ -22,6 +22,9 @@ export class VehicleAssignment {
 
   @Prop()
   returnedAt?: Date;
+
+  @Prop({ trim: true })
+  notes?: string;
 }
 
 export const VehicleAssignmentSchema = SchemaFactory.createForClass(VehicleAssignment);

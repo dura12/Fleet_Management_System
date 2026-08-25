@@ -18,6 +18,9 @@ export class Vehicle {
   @Prop({ required: true, trim: true })
   vehicleType: string;
 
+  @Prop({ required: true, min: 1 })
+  seatingCapacity: number;
+
   @Prop({ required: true, min: 0, default: 0 })
   currentMileage: number;
 

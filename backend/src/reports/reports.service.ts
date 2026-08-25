@@ -15,7 +15,7 @@ export class ReportsService {
 
   // Report 1: Vehicle Register - full vehicle list with current status.
   async vehicleRegister() {
-    return this.vehicleModel.find().sort({ vehicleId: 1 });
+    return this.vehicleModel.find().sort({ vehicleId: 1 }).lean();
   }
 
   // Report 2: Requests by Status - counts + the requests themselves, grouped.
@@ -23,22 +23,24 @@ export class ReportsService {
     const requests = await this.requestModel
       .find()
       .populate('requester', 'fullName department')
-      .sort({ status: 1, createdAt: -1 });
+      .sort({ status: 1, createdAt: -1 })
+      .lean();
     const grouped: Record<string, any[]> = {};
     for (const r of requests) {
-      grouped[r.status] = grouped[r.status] || [];
-      grouped[r.status].push(r);
+      const status = r.status || 'Unknown';
+      grouped[status] = grouped[status] || [];
+      grouped[status].push(r);
     }
     return grouped;
   }
 
-  // Report 3: Assignment History - every assignment made, with vehicle/driver/request detail.
   async assignmentHistory() {
     return this.assignmentModel
       .find()
-      .populate('vehicle', 'plateNumber model vehicleType')
+      .populate('vehicle', 'plateNumber model vehicleType seatingCapacity')
       .populate('driver', 'driverName licenseNumber')
-      .populate({ path: 'request', select: 'requestNumber destination travelDate status requester', populate: { path: 'requester', select: 'fullName department' } })
-      .sort({ assignmentDate: -1 });
+      .populate({ path: 'request', select: 'requestNumber destination travelDate status requester priority', populate: { path: 'requester', select: 'fullName department' } })
+      .sort({ assignmentDate: -1 })
+      .lean();
   }
 }

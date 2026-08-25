@@ -12,7 +12,7 @@ export class VehiclesController {
   constructor(private vehiclesService: VehiclesService) {}
 
   @Post()
-  @Roles(Role.FLEET_COORDINATOR)
+  @Roles(Role.ADMIN, Role.FLEET_COORDINATOR)
   create(@Body() dto: CreateVehicleDto) {
     return this.vehiclesService.create(dto);
   }
@@ -30,13 +30,13 @@ export class VehiclesController {
   }
 
   @Patch(':id')
-  @Roles(Role.FLEET_COORDINATOR)
+  @Roles(Role.ADMIN, Role.FLEET_COORDINATOR)
   update(@Param('id') id: string, @Body() dto: UpdateVehicleDto) {
     return this.vehiclesService.update(id, dto);
   }
 
   @Delete(':id')
-  @Roles(Role.FLEET_COORDINATOR)
+  @Roles(Role.ADMIN, Role.FLEET_COORDINATOR)
   remove(@Param('id') id: string) {
     return this.vehiclesService.remove(id);
   }

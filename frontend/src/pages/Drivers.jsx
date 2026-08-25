@@ -10,7 +10,7 @@ function isExpired(date) {
 
 export default function Drivers() {
   const { user } = useAuth();
-  const canEdit = user.role === 'fleet_coordinator';
+  const canEdit = user.role === 'fleet_coordinator' || user.role === 'admin';
   const [drivers, setDrivers] = useState([]);
   const [search, setSearch] = useState('');
   const [form, setForm] = useState(emptyForm);
@@ -81,12 +81,16 @@ export default function Drivers() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+      <div className="page-header">
         <div>
           <h1>Drivers</h1>
           <p className="subtitle">Driver roster and license status.</p>
         </div>
-        {canEdit && <button className="btn" onClick={startNew}>+ Add Driver</button>}
+        {canEdit && (
+          <div className="page-header-actions">
+            <button className="btn" type="button" onClick={startNew}>+ Add Driver</button>
+          </div>
+        )}
       </div>
 
       {error && <div className="error-banner">{error}</div>}
@@ -94,7 +98,7 @@ export default function Drivers() {
       <div className="filters">
         <div>
           <label>Search</label>
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Name, license\u2026" />
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Name, license…" />
         </div>
       </div>
 
@@ -132,11 +136,11 @@ export default function Drivers() {
         </form>
       )}
 
-      <div className="card">
+      <div className="card table-scroll">
         {drivers.length === 0 ? (
           <div className="empty-state">No drivers found.</div>
         ) : (
-          <table>
+          <table className="responsive-table">
             <thead>
               <tr>
                 <th>Driver ID</th><th>Name</th><th>License #</th><th>License Expiry</th><th>Status</th>{canEdit && <th></th>}
@@ -145,11 +149,11 @@ export default function Drivers() {
             <tbody>
               {drivers.map((d) => (
                 <tr key={d._id}>
-                  <td>{d.driverId}</td>
-                  <td>{d.driverName}</td>
-                  <td>{d.licenseNumber}</td>
-                  <td>{new Date(d.licenseExpiry).toLocaleDateString()}</td>
-                  <td>
+                  <td data-label="Driver ID">{d.driverId}</td>
+                  <td data-label="Name">{d.driverName}</td>
+                  <td data-label="License #">{d.licenseNumber}</td>
+                  <td data-label="License Expiry">{new Date(d.licenseExpiry).toLocaleDateString()}</td>
+                  <td data-label="Status">
                     {!d.isActive ? (
                       <span className="badge Inactive">Inactive</span>
                     ) : isExpired(d.licenseExpiry) ? (
@@ -159,9 +163,9 @@ export default function Drivers() {
                     )}
                   </td>
                   {canEdit && (
-                    <td className="actions">
-                      <button className="btn secondary" onClick={() => startEdit(d)}>Edit</button>{' '}
-                      <button className="btn danger" onClick={() => handleDelete(d._id)}>Delete</button>
+                    <td className="actions" data-label="Actions">
+                      <button className="btn secondary" type="button" onClick={() => startEdit(d)}>Edit</button>{' '}
+                      <button className="btn danger" type="button" onClick={() => handleDelete(d._id)}>Delete</button>
                     </td>
                   )}
                 </tr>
