@@ -3,6 +3,7 @@ import { NavLink, Link, useNavigate, useLocation } from 'react-router-dom';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import BrandLogo from './BrandLogo';
+import NotificationBell from './NotificationBell';
 
 const ROLE_LABELS = {
   employee: 'Employee',
@@ -68,7 +69,7 @@ function EmployeeNavbar({ user, roleLabel, onLogout }) {
           </div>
         </div>
         <div className="navbar-right">
-          <button type="button" className="icon-btn" title="Notifications" aria-label="Notifications">🔔</button>
+          <NotificationBell />
           <button type="button" className="icon-btn" title="History" aria-label="History">🕐</button>
           <a href="#" className="help-link" onClick={(e) => e.preventDefault()}>Help</a>
           <UserIdentity user={user} roleLabel={roleLabel} />
@@ -142,7 +143,7 @@ function CoordinatorNavbar({ user, roleLabel, onLogout }) {
               {navOpen ? '✕' : '☰'}
             </button>
             <button type="button" className="icon-btn coordinator-desktop-only" title="Search" aria-label="Search">⌕</button>
-            <button type="button" className="icon-btn" title="Notifications" aria-label="Notifications">🔔</button>
+            <NotificationBell />
             <a href="#" className="help-link coordinator-desktop-only" onClick={(e) => e.preventDefault()}>Help</a>
             <UserIdentity user={user} roleLabel={roleLabel} />
             <button type="button" className="link-btn logout-compact" onClick={onLogout}>Log out</button>
@@ -220,6 +221,7 @@ function AdminNavbar({ user, roleLabel, onLogout }) {
             >
               {navOpen ? '✕' : '☰'}
             </button>
+            <NotificationBell />
             <UserIdentity user={user} roleLabel={roleLabel} />
             <button type="button" className="link-btn logout-compact" onClick={onLogout}>Log out</button>
           </div>
@@ -250,7 +252,7 @@ function ManagerNavbar({ user, roleLabel, onLogout }) {
           <BrandLogo subtitle="Fleet Management" />
         </div>
         <div className="navbar-right">
-          <button type="button" className="icon-btn" title="Notifications" aria-label="Notifications">🔔</button>
+          <NotificationBell />
           <UserIdentity user={user} roleLabel={roleLabel} />
           <button type="button" className="link-btn logout-compact" onClick={onLogout}>Log out</button>
         </div>
@@ -306,6 +308,7 @@ function StaffNavbar({ user, roleLabel, awaitingAssignment, onLogout }) {
             </NavLink>
           )}
           <UserIdentity user={user} roleLabel={roleLabel} />
+          <NotificationBell />
           <button className="link-btn" onClick={onLogout}>Log out</button>
         </nav>
       </div>

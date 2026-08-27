@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client';
+import { useRequestUi } from '../context/RequestUiContext';
 
 function formatQueueDate(dateStr) {
   const d = new Date(dateStr);
@@ -8,12 +9,16 @@ function formatQueueDate(dateStr) {
     ', ' + d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 }
 
-function AssignmentQueueCard({ request }) {
+function AssignmentQueueCard({ request, onOpen }) {
   const overdue = request.isOverdue;
   const urgent = request.priority === 'Urgent';
 
   return (
-    <Link to={`/requests/${request._id}`} className={`queue-card ${overdue ? 'queue-card-overdue' : ''}`}>
+    <button
+      type="button"
+      className={`queue-card ${overdue ? 'queue-card-overdue' : ''}`}
+      onClick={() => onOpen(request._id)}
+    >
       <div className="queue-card-top">
         <span className="queue-card-id">{request.requestNumber}</span>
         {overdue && <span className="queue-overdue-tag">Overdue</span>}
@@ -27,7 +32,7 @@ function AssignmentQueueCard({ request }) {
       </div>
       <div className="queue-card-destination">{request.destination}</div>
       <span className="queue-card-action">Assign →</span>
-    </Link>
+    </button>
   );
 }
 
@@ -66,6 +71,7 @@ function DriverListItem({ driver }) {
 }
 
 export default function FleetCoordinatorDashboard() {
+  const { openDetail, refreshKey } = useRequestUi();
   const [requests, setRequests] = useState([]);
   const [vehicles, setVehicles] = useState([]);
   const [drivers, setDrivers] = useState([]);
@@ -107,7 +113,7 @@ export default function FleetCoordinatorDashboard() {
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(); }, [load, refreshKey]);
 
   const pendingAssignment = useMemo(
     () => requests
@@ -201,7 +207,7 @@ export default function FleetCoordinatorDashboard() {
             {pendingAssignment.length === 0 ? (
               <div className="panel-empty">No approved requests awaiting assignment.</div>
             ) : (
-              pendingAssignment.map((r) => <AssignmentQueueCard key={r._id} request={r} />)
+              pendingAssignment.map((r) => <AssignmentQueueCard key={r._id} request={r} onOpen={openDetail} />)
             )}
           </div>
         </section>
@@ -252,7 +258,7 @@ export default function FleetCoordinatorDashboard() {
                           <span className="in-transit-badge">🚐 In Transit</span>
                         </td>
                         <td data-label="Action">
-                          <Link to={`/requests/${r._id}`} className="btn-link">Manage</Link>
+                          <button type="button" className="btn-link" onClick={() => openDetail(r._id)}>Manage</button>
                         </td>
                       </tr>
                     );

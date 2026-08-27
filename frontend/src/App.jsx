@@ -1,10 +1,10 @@
-import { Routes, Route, Navigate, Link } from 'react-router-dom';
+import { useEffect } from 'react';
+import { Routes, Route, Navigate, Link, useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
+import { RequestUiProvider, useRequestUi } from './context/RequestUiContext';
 import Navbar from './components/Navbar';
 import Login from './pages/Login';
 import RequestsList from './pages/RequestsList';
-import NewRequest from './pages/NewRequest';
-import RequestDetail from './pages/RequestDetail';
 import Vehicles from './pages/Vehicles';
 import Drivers from './pages/Drivers';
 import Reports from './pages/Reports';
@@ -34,24 +34,62 @@ function Protected({ children, roles }) {
   return children;
 }
 
+function OpenCreateModalRedirect() {
+  const { openCreate } = useRequestUi();
+  const navigate = useNavigate();
+  useEffect(() => {
+    openCreate();
+    navigate('/', { replace: true });
+  }, [openCreate, navigate]);
+  return null;
+}
+
+function OpenDetailModalRedirect() {
+  const { id } = useParams();
+  const { openDetail } = useRequestUi();
+  const navigate = useNavigate();
+  useEffect(() => {
+    openDetail(id);
+    navigate('/', { replace: true });
+  }, [id, openDetail, navigate]);
+  return null;
+}
+
+function AuthenticatedApp() {
+  const { user } = useAuth();
+  return (
+    <RequestUiProvider>
+      <div className="app-shell">
+        <Navbar />
+        <div className={user.role === 'employee' ? 'container employee-container' : user.role === 'manager' ? 'container manager-container' : user.role === 'fleet_coordinator' ? 'container coordinator-container' : user.role === 'admin' ? 'container admin-container' : 'container'}>
+          <Routes>
+            <Route path="/" element={<RequestsList />} />
+            <Route path="/requests/new" element={<Protected roles={['employee']}><OpenCreateModalRedirect /></Protected>} />
+            <Route path="/requests/:id" element={<OpenDetailModalRedirect />} />
+            <Route path="/vehicles" element={<Protected roles={['admin', 'manager', 'fleet_coordinator']}><Vehicles /></Protected>} />
+            <Route path="/drivers" element={<Protected roles={['admin', 'manager', 'fleet_coordinator']}><Drivers /></Protected>} />
+            <Route path="/reports" element={<Protected roles={['admin', 'manager', 'fleet_coordinator']}><Reports /></Protected>} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </div>
+      </div>
+    </RequestUiProvider>
+  );
+}
+
 export default function App() {
   const { user } = useAuth();
 
-  return (
-    <div className="app-shell">
-      <Navbar />
-      <div className={user ? (user.role === 'employee' ? 'container employee-container' : user.role === 'manager' ? 'container manager-container' : user.role === 'fleet_coordinator' ? 'container coordinator-container' : user.role === 'admin' ? 'container admin-container' : 'container') : ''}>
+  if (!user) {
+    return (
+      <div className="app-shell">
         <Routes>
-          <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
-          <Route path="/" element={<Protected><RequestsList /></Protected>} />
-          <Route path="/requests/new" element={<Protected roles={['employee']}><NewRequest /></Protected>} />
-          <Route path="/requests/:id" element={<Protected><RequestDetail /></Protected>} />
-          <Route path="/vehicles" element={<Protected roles={['admin', 'manager', 'fleet_coordinator']}><Vehicles /></Protected>} />
-          <Route path="/drivers" element={<Protected roles={['admin', 'manager', 'fleet_coordinator']}><Drivers /></Protected>} />
-          <Route path="/reports" element={<Protected roles={['admin', 'manager', 'fleet_coordinator']}><Reports /></Protected>} />
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       </div>
-    </div>
-  );
+    );
+  }
+
+  return <AuthenticatedApp />;
 }

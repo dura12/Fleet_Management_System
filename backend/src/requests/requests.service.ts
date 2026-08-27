@@ -19,6 +19,8 @@ import {
 } from '../common/status.enum';
 import { VehiclesService } from '../vehicles/vehicles.service';
 import { DriversService } from '../drivers/drivers.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationType } from '../notifications/notification.schema';
 import { Role } from '../common/roles.enum';
 
 interface AuthUser {
@@ -33,6 +35,7 @@ export class RequestsService {
     @InjectModel(VehicleAssignment.name) private assignmentModel: Model<VehicleAssignmentDocument>,
     private vehiclesService: VehiclesService,
     private driversService: DriversService,
+    private notificationsService: NotificationsService,
   ) {}
 
   private assertTransition(current: RequestStatus, next: RequestStatus) {
@@ -316,15 +319,32 @@ export class RequestsService {
   }
 
   async submit(id: string, user: AuthUser): Promise<VehicleRequestDocument> {
-    const request = await this.requestModel.findById(id);
+    const request = await this.requestModel.findById(id).populate('requester', 'fullName');
     if (!request) throw new NotFoundException('Vehicle request not found.');
-    if (user.role === Role.EMPLOYEE && String(request.requester) !== user.userId) {
+    if (user.role === Role.EMPLOYEE && String((request.requester as any)._id || request.requester) !== user.userId) {
       throw new ForbiddenException('You can only submit your own requests.');
     }
     this.assertTransition(request.status, RequestStatus.SUBMITTED);
     request.status = RequestStatus.SUBMITTED;
     request.submittedAt = new Date();
-    return request.save();
+    const saved = await request.save();
+
+    const requesterName = (request.requester as any)?.fullName || 'An employee';
+    await this.safeNotify(() =>
+      this.notificationsService.notifyRoles(
+        [Role.MANAGER, Role.ADMIN],
+        {
+          type: NotificationType.REQUEST_SUBMITTED,
+          title: 'New request submitted',
+          message: `${requesterName} submitted ${request.requestNumber} for ${request.destination}.`,
+          requestId: String(request._id),
+          requestNumber: request.requestNumber,
+        },
+        user.userId,
+      ),
+    );
+
+    return saved;
   }
 
   async cancel(id: string, user: AuthUser): Promise<VehicleRequestDocument | { deleted: boolean }> {
@@ -335,10 +355,28 @@ export class RequestsService {
     const isOwner = requesterId === user.userId;
     const isManager = user.role === Role.MANAGER;
     const isAdmin = user.role === Role.ADMIN;
+    const requestNumber = request.requestNumber;
+    const previousStatus = request.status;
 
     if ([RequestStatus.DRAFT, RequestStatus.SUBMITTED].includes(request.status)) {
       if (!isOwner && !isAdmin) throw new ForbiddenException('You can only cancel your own requests.');
       await request.deleteOne();
+
+      if (previousStatus === RequestStatus.SUBMITTED) {
+        await this.safeNotify(() =>
+          this.notificationsService.notifyRoles(
+            [Role.MANAGER, Role.ADMIN],
+            {
+              type: NotificationType.REQUEST_CANCELLED,
+              title: 'Request withdrawn',
+              message: `${requestNumber} was cancelled before approval.`,
+              requestNumber,
+            },
+            user.userId,
+          ),
+        );
+      }
+
       return { deleted: true };
     }
 
@@ -357,7 +395,30 @@ export class RequestsService {
 
       request.status = RequestStatus.CANCELLED;
       request.cancelledAt = new Date();
-      return request.save();
+      const saved = await request.save();
+
+      const recipients: string[] = [];
+      if (!isOwner) recipients.push(requesterId);
+      const staffIds = await this.notificationsService.findUserIdsByRoles([
+        Role.MANAGER,
+        Role.FLEET_COORDINATOR,
+        Role.ADMIN,
+      ]);
+      for (const sid of staffIds) {
+        if (sid !== user.userId) recipients.push(sid);
+      }
+      await this.safeNotify(() =>
+        this.notificationsService.createMany({
+          recipientIds: recipients,
+          type: NotificationType.REQUEST_CANCELLED,
+          title: 'Request cancelled',
+          message: `${requestNumber} was cancelled.`,
+          requestId: String(request._id),
+          requestNumber,
+        }),
+      );
+
+      return saved;
     }
 
     throw new BadRequestException('This request cannot be cancelled in its current status.');
@@ -376,7 +437,32 @@ export class RequestsService {
     request.decidedBy = user.userId as any;
     request.decidedAt = new Date();
     request.rejectionReason = undefined;
-    return request.save();
+    const saved = await request.save();
+
+    const requesterId = String(request.requester);
+    await this.safeNotify(async () => {
+      await this.notificationsService.createMany({
+        recipientIds: [requesterId],
+        type: NotificationType.REQUEST_APPROVED,
+        title: 'Request approved',
+        message: `${request.requestNumber} was approved and is awaiting vehicle assignment.`,
+        requestId: String(request._id),
+        requestNumber: request.requestNumber,
+      });
+      await this.notificationsService.notifyRoles(
+        [Role.FLEET_COORDINATOR, Role.ADMIN],
+        {
+          type: NotificationType.REQUEST_APPROVED,
+          title: 'Ready for assignment',
+          message: `${request.requestNumber} to ${request.destination} was approved.`,
+          requestId: String(request._id),
+          requestNumber: request.requestNumber,
+        },
+        user.userId,
+      );
+    });
+
+    return saved;
   }
 
   async reject(id: string, reason: string | undefined, user: AuthUser): Promise<VehicleRequestDocument> {
@@ -387,7 +473,21 @@ export class RequestsService {
     request.decidedBy = user.userId as any;
     request.decidedAt = new Date();
     request.rejectionReason = reason;
-    return request.save();
+    const saved = await request.save();
+
+    const reasonText = reason ? ` Reason: ${reason}` : '';
+    await this.safeNotify(() =>
+      this.notificationsService.createMany({
+        recipientIds: [String(request.requester)],
+        type: NotificationType.REQUEST_REJECTED,
+        title: 'Request rejected',
+        message: `${request.requestNumber} was rejected.${reasonText}`,
+        requestId: String(request._id),
+        requestNumber: request.requestNumber,
+      }),
+    );
+
+    return saved;
   }
 
   async assign(id: string, dto: AssignVehicleDto): Promise<VehicleRequestDocument> {
@@ -416,7 +516,20 @@ export class RequestsService {
 
     await this.vehiclesService.markAssigned(dto.vehicleId);
     request.status = RequestStatus.VEHICLE_ASSIGNED;
-    return request.save();
+    const saved = await request.save();
+
+    await this.safeNotify(() =>
+      this.notificationsService.createMany({
+        recipientIds: [String(request.requester)],
+        type: NotificationType.REQUEST_ASSIGNED,
+        title: 'Vehicle assigned',
+        message: `${request.requestNumber}: ${vehicle.plateNumber} (${vehicle.model}) has been assigned.`,
+        requestId: String(request._id),
+        requestNumber: request.requestNumber,
+      }),
+    );
+
+    return saved;
   }
 
   async reassignDriver(id: string, dto: ReassignDriverDto): Promise<VehicleAssignmentDocument> {
@@ -483,7 +596,20 @@ export class RequestsService {
     await this.releaseAssignmentVehicle(assignment);
 
     request.status = RequestStatus.COMPLETED;
-    return request.save();
+    const saved = await request.save();
+
+    await this.safeNotify(() =>
+      this.notificationsService.createMany({
+        recipientIds: [String(request.requester)],
+        type: NotificationType.REQUEST_COMPLETED,
+        title: 'Trip completed',
+        message: `${request.requestNumber} has been marked completed.`,
+        requestId: String(request._id),
+        requestNumber: request.requestNumber,
+      }),
+    );
+
+    return saved;
   }
 
   async overrideStatus(id: string, status: RequestStatus, user: AuthUser): Promise<VehicleRequestDocument> {
@@ -513,7 +639,28 @@ export class RequestsService {
     request.status = status;
     if (status === RequestStatus.SUBMITTED && !request.submittedAt) request.submittedAt = new Date();
     if (status === RequestStatus.CANCELLED) request.cancelledAt = new Date();
-    return request.save();
+    const saved = await request.save();
+
+    await this.safeNotify(() =>
+      this.notificationsService.createMany({
+        recipientIds: [String(request.requester)],
+        type: NotificationType.STATUS_OVERRIDE,
+        title: 'Request status updated',
+        message: `${request.requestNumber} status was changed to ${status} by an administrator.`,
+        requestId: String(request._id),
+        requestNumber: request.requestNumber,
+      }),
+    );
+
+    return saved;
+  }
+
+  private async safeNotify(fn: () => Promise<void>) {
+    try {
+      await fn();
+    } catch {
+      // Notification failures must not block the request workflow.
+    }
   }
 
   private async assertDriverNotOnActiveTrip(driverId: string, excludeRequestId: string) {

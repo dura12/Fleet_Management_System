@@ -21,13 +21,23 @@
 
 * { box-sizing: border-box; }
 
+html {
+  scrollbar-gutter: stable;
+}
+
 body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
+  overflow-y: scroll; /* keep layout width stable when page height changes */
 }
 
-.app-shell { min-height: 100vh; display: flex; flex-direction: column; }
+.app-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
 
 /* —— OTech brand chrome —— */
 .otech-top-bar {
@@ -39,6 +49,7 @@ body {
   color: white;
   padding: 0.35rem 1.5rem;
   font-size: 0.78rem;
+  flex-shrink: 0;
 }
 .otech-top-bar-title { font-weight: 600; letter-spacing: 0.01em; }
 .otech-top-bar-meta { color: rgba(255,255,255,0.72); }
@@ -72,6 +83,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-shrink: 0;
 }
 .staff-navbar {
   display: flex;
@@ -129,7 +141,7 @@ body {
   padding: 0.3rem 0.7rem; border-radius: 5px; cursor: pointer; font-size: 0.82rem;
 }
 
-.container { max-width: 1080px; margin: 0 auto; padding: 1.8rem 1.5rem; width: 100%; flex: 1; min-width: 0; }
+.container { max-width: 1240px; margin: 0 auto; padding: 1.8rem 1.5rem; width: 100%; flex: 1; min-width: 0; }
 
 .page-header {
   display: flex;
@@ -324,7 +336,7 @@ tr.row-overdue { background: #fff7ed; }
 .stat-box .label { font-size: 0.78rem; color: var(--muted); }
 
 /* —— Employee dashboard —— */
-.employee-container { max-width: 1200px; }
+.employee-container { max-width: 1240px; }
 
 .employee-navbar {
   display: grid;
@@ -428,6 +440,108 @@ tr.row-overdue { background: #fff7ed; }
   font-weight: 500;
 }
 .help-link:hover { color: var(--text); }
+.notification-bell-wrap {
+  position: relative;
+  display: inline-flex;
+}
+.notification-bell-btn {
+  position: relative;
+}
+.notification-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--otech-red);
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+}
+.notification-panel {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  width: min(360px, calc(100vw - 1.5rem));
+  max-height: 420px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.14);
+  z-index: 1200;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.notification-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 0.9rem;
+  border-bottom: 1px solid var(--border);
+}
+.notification-panel-header .link-btn {
+  font-size: 0.78rem;
+  color: var(--otech-red);
+}
+.notification-panel-body {
+  overflow-y: auto;
+  max-height: 360px;
+}
+.notification-empty {
+  margin: 0;
+  padding: 1.25rem 0.9rem;
+  color: var(--muted);
+  font-size: 0.88rem;
+  text-align: center;
+}
+.notification-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: #fff;
+  border: none;
+  border-bottom: 1px solid #f1f5f9;
+  padding: 0.75rem 0.9rem;
+  cursor: pointer;
+}
+.notification-item:hover { background: #f8fafc; }
+.notification-item.unread { background: #fff5f5; }
+.notification-item.unread:hover { background: #ffecec; }
+.notification-item-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  align-items: baseline;
+}
+.notification-item-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text);
+}
+.notification-item-time {
+  font-size: 0.72rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.notification-item-msg {
+  margin: 0.25rem 0 0;
+  font-size: 0.8rem;
+  color: #475569;
+  line-height: 1.35;
+}
+.notification-item-meta {
+  display: inline-block;
+  margin-top: 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--otech-red);
+}
 .avatar {
   width: 34px;
   height: 34px;
@@ -656,6 +770,11 @@ tr.row-overdue { background: #fff7ed; }
   font-weight: 600;
   font-size: 0.85rem;
   text-decoration: none;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: inherit;
 }
 .btn-link:hover { text-decoration: underline; }
 
@@ -1062,7 +1181,7 @@ tr.row-overdue { background: #fff7ed; }
 .reports-embedded .reports-card-title { display: none; }
 
 /* —— Fleet Coordinator dashboard —— */
-.coordinator-container { max-width: 1280px; }
+.coordinator-container { max-width: 1240px; }
 
 .coordinator-dash-header {
   margin-bottom: 1.25rem;
@@ -1237,7 +1356,7 @@ tr.row-overdue { background: #fff7ed; }
 
 /* --- Administrator dashboard & navbar --- */
 .admin-container {
-  max-width: 1280px;
+  max-width: 1240px;
 }
 .admin-navbar {
   background: #fff;
@@ -1489,10 +1608,10 @@ tr.row-overdue { background: #fff7ed; }
   inset: 0;
   background: rgba(11, 13, 23, 0.45);
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: center;
   z-index: 1000;
-  padding: 1rem;
+  padding: 0;
 }
 .modal-card {
   background: #fff;
@@ -1502,6 +1621,92 @@ tr.row-overdue { background: #fff7ed; }
   max-height: 90vh;
   overflow-y: auto;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
+}
+.app-modal {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  width: min(560px, 100%);
+  max-height: min(92vh, 900px);
+  border-radius: 14px 14px 0 0;
+  overflow: hidden;
+}
+.app-modal-md { width: min(560px, 100%); }
+.app-modal-lg { width: min(820px, 100%); }
+.app-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 1rem 1.15rem;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.app-modal-heading h2 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+.app-modal-sub {
+  margin: 0.3rem 0 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.app-modal-close {
+  border: 1px solid var(--border);
+  background: #fff;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  cursor: pointer;
+  flex-shrink: 0;
+  color: #475569;
+}
+.app-modal-close:hover { background: #f8fafc; }
+.app-modal-body {
+  padding: 1rem 1.15rem 1.25rem;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.app-modal-footer {
+  padding: 0.85rem 1.15rem;
+  border-top: 1px solid var(--border);
+}
+.app-modal-actions {
+  margin-top: 1rem;
+}
+.request-detail-embedded .card {
+  margin-bottom: 0.85rem;
+}
+.request-detail-embedded .detail-header h1 {
+  font-size: 1.25rem;
+}
+button.queue-card {
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  appearance: none;
+}
+
+@media (min-width: 641px) {
+  .modal-backdrop {
+    align-items: center;
+    padding: 1rem;
+  }
+  .app-modal {
+    border-radius: 12px;
+    max-height: 90vh;
+  }
+}
+
+@media (max-width: 640px) {
+  .app-modal-actions {
+    flex-direction: column;
+  }
+  .app-modal-actions .btn {
+    width: 100%;
+    text-align: center;
+  }
 }
 .admin-user-modal label {
   display: block;

@@ -7,6 +7,7 @@ import { VehicleSchema } from './vehicles/vehicle.schema';
 import { DriverSchema } from './drivers/driver.schema';
 import { VehicleRequestSchema } from './requests/vehicle-request.schema';
 import { VehicleAssignmentSchema } from './assignments/vehicle-assignment.schema';
+import { NotificationSchema } from './notifications/notification.schema';
 import { Role } from './common/roles.enum';
 import { RequestPriority, RequestStatus, VehicleStatus } from './common/status.enum';
 
@@ -23,11 +24,13 @@ async function seed() {
   const DriverModel = mongoose.model('Driver', DriverSchema);
   const RequestModel = mongoose.model('VehicleRequest', VehicleRequestSchema);
   const AssignmentModel = mongoose.model('VehicleAssignment', VehicleAssignmentSchema);
+  const NotificationModel = mongoose.model('Notification', NotificationSchema);
 
   // Clear all collections so user IDs stay in sync with requests.
   await Promise.all([
     AssignmentModel.deleteMany({}),
     RequestModel.deleteMany({}),
+    NotificationModel.deleteMany({}),
     UserModel.deleteMany({}),
     VehicleModel.deleteMany({}),
     DriverModel.deleteMany({}),

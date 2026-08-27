@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import EmployeeStatusBadge from '../components/EmployeeStatusBadge';
+import { useRequestUi } from '../context/RequestUiContext';
 
 const PAGE_SIZE = 5;
 
@@ -18,6 +18,7 @@ function formatTravelDate(dateStr) {
 }
 
 export default function EmployeeRequests() {
+  const { openCreate, openDetail, refreshKey } = useRequestUi();
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -36,7 +37,7 @@ export default function EmployeeRequests() {
       .then(setRequests)
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
-  }, []);
+  }, [refreshKey]);
 
   useEffect(() => {
     const onNavSearch = (e) => setNavSearch(e.detail || '');
@@ -95,7 +96,7 @@ export default function EmployeeRequests() {
           <h1>My Vehicle Requests</h1>
           <p className="subtitle">Manage and track your travel requisitions.</p>
         </div>
-        <Link to="/requests/new" className="btn btn-new-request">+ New Request</Link>
+        <button type="button" className="btn btn-new-request" onClick={openCreate}>+ New Request</button>
       </div>
 
       {error && <div className="error-banner">{error}</div>}
@@ -163,9 +164,13 @@ export default function EmployeeRequests() {
                         <td data-label="Travel Date">{formatTravelDate(r.travelDate)}</td>
                         <td data-label="Status"><EmployeeStatusBadge status={r.status} /></td>
                         <td className="actions" data-label="Actions" onClick={(e) => e.stopPropagation()}>
-                          <Link to={`/requests/${r._id}`} className="btn-link">
+                          <button
+                            type="button"
+                            className="btn-link"
+                            onClick={() => openDetail(r._id)}
+                          >
                             {r.status === 'Draft' ? 'Edit' : 'View'}
-                          </Link>
+                          </button>
                         </td>
                       </tr>
                       {isExpanded && (

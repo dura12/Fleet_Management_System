@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import Reports from './Reports';
+import Modal from '../components/Modal';
+import { useRequestUi } from '../context/RequestUiContext';
 
 const ROLE_OPTIONS = [
   { value: 'employee', label: 'Employee / Requester' },
@@ -116,74 +118,69 @@ function UserFormModal({ user, onClose, onSaved }) {
   };
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal-card admin-user-modal" onClick={(e) => e.stopPropagation()}>
-        <h2>{isEdit ? 'Edit User' : 'Create User'}</h2>
-        {error && <div className="error-banner">{error}</div>}
-        <form onSubmit={handleSubmit}>
-          <label>Employee ID</label>
-          <input
-            value={form.employeeId}
-            onChange={(e) => setForm({ ...form, employeeId: e.target.value })}
-            required
-          />
-          <label>Full Name</label>
-          <input
-            value={form.fullName}
-            onChange={(e) => setForm({ ...form, fullName: e.target.value })}
-            required
-          />
-          <label>Email</label>
-          <input
-            type="email"
-            value={form.email}
-            onChange={(e) => setForm({ ...form, email: e.target.value })}
-            required
-          />
-          <label>{isEdit ? 'New Password (optional)' : 'Password'}</label>
-          <input
-            type="password"
-            value={form.password}
-            onChange={(e) => setForm({ ...form, password: e.target.value })}
-            required={!isEdit}
-            minLength={6}
-          />
-          <label>Department</label>
-          <input
-            value={form.department}
-            onChange={(e) => setForm({ ...form, department: e.target.value })}
-            required
-          />
-          <label>Role</label>
-          <select
-            value={form.role}
-            onChange={(e) => setForm({ ...form, role: e.target.value })}
-          >
-            {ROLE_OPTIONS.map((r) => (
-              <option key={r.value} value={r.value}>{r.label}</option>
-            ))}
-          </select>
-          {isEdit && (
-            <>
-              <label className="checkbox-row">
-                <input
-                  type="checkbox"
-                  checked={form.isActive}
-                  onChange={(e) => setForm({ ...form, isActive: e.target.checked })}
-                />
-                Account active
-              </label>
-            </>
-          )}
-          <div className="btn-row">
-            <button type="button" className="btn secondary" onClick={onClose}>Cancel</button>
-            <button type="submit" className="btn" disabled={busy}>
-              {busy ? 'Saving…' : isEdit ? 'Save Changes' : 'Create User'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+    <Modal title={isEdit ? 'Edit User' : 'Create User'} size="md" onClose={onClose}>
+      {error && <div className="error-banner">{error}</div>}
+      <form onSubmit={handleSubmit} className="admin-user-modal">
+        <label>Employee ID</label>
+        <input
+          value={form.employeeId}
+          onChange={(e) => setForm({ ...form, employeeId: e.target.value })}
+          required
+        />
+        <label>Full Name</label>
+        <input
+          value={form.fullName}
+          onChange={(e) => setForm({ ...form, fullName: e.target.value })}
+          required
+        />
+        <label>Email</label>
+        <input
+          type="email"
+          value={form.email}
+          onChange={(e) => setForm({ ...form, email: e.target.value })}
+          required
+        />
+        <label>{isEdit ? 'New Password (optional)' : 'Password'}</label>
+        <input
+          type="password"
+          value={form.password}
+          onChange={(e) => setForm({ ...form, password: e.target.value })}
+          required={!isEdit}
+          minLength={6}
+        />
+        <label>Department</label>
+        <input
+          value={form.department}
+          onChange={(e) => setForm({ ...form, department: e.target.value })}
+          required
+        />
+        <label>Role</label>
+        <select
+          value={form.role}
+          onChange={(e) => setForm({ ...form, role: e.target.value })}
+        >
+          {ROLE_OPTIONS.map((r) => (
+            <option key={r.value} value={r.value}>{r.label}</option>
+          ))}
+        </select>
+        {isEdit && (
+          <label className="checkbox-row">
+            <input
+              type="checkbox"
+              checked={form.isActive}
+              onChange={(e) => setForm({ ...form, isActive: e.target.checked })}
+            />
+            Account active
+          </label>
+        )}
+        <div className="btn-row app-modal-actions">
+          <button type="button" className="btn secondary" onClick={onClose}>Cancel</button>
+          <button type="submit" className="btn" disabled={busy}>
+            {busy ? 'Saving…' : isEdit ? 'Save Changes' : 'Create User'}
+          </button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 
@@ -275,6 +272,7 @@ function UserManagement({ users, onRefresh }) {
 }
 
 function RequestOversight({ requests, onRefresh }) {
+  const { openDetail } = useRequestUi();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [busyId, setBusyId] = useState(null);
@@ -345,7 +343,9 @@ function RequestOversight({ requests, onRefresh }) {
             {filtered.map((r) => (
               <tr key={r._id}>
                 <td data-label="Request">
-                  <Link to={`/requests/${r._id}`}>{r.requestNumber}</Link>
+                  <button type="button" className="btn-link" onClick={() => openDetail(r._id)}>
+                    {r.requestNumber}
+                  </button>
                 </td>
                 <td data-label="Requester">{r.requester?.fullName || '—'}</td>
                 <td data-label="Destination">{r.destination}</td>
@@ -376,6 +376,7 @@ function RequestOversight({ requests, onRefresh }) {
 }
 
 export default function AdminDashboard() {
+  const { refreshKey } = useRequestUi();
   const [tab, setTab] = useState('overview');
   const [users, setUsers] = useState([]);
   const [requests, setRequests] = useState([]);
@@ -412,7 +413,7 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     load();
-  }, [load]);
+  }, [load, refreshKey]);
 
   if (loading) return <p className="loading-msg">Loading…</p>;
 

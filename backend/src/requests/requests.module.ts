@@ -6,6 +6,7 @@ import { RequestsService } from './requests.service';
 import { RequestsController } from './requests.controller';
 import { VehiclesModule } from '../vehicles/vehicles.module';
 import { DriversModule } from '../drivers/drivers.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { DriversModule } from '../drivers/drivers.module';
     ]),
     VehiclesModule,
     DriversModule,
+    NotificationsModule,
   ],
   controllers: [RequestsController],
   providers: [RequestsService],

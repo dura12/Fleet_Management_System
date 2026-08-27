@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import Modal from '../components/Modal';
 
 const emptyForm = { driverId: '', driverName: '', employeeId: '', licenseNumber: '', licenseExpiry: '' };
 
@@ -32,6 +33,12 @@ export default function Drivers() {
 
   const update = (field) => (e) => setForm({ ...form, [field]: e.target.value });
 
+  const closeForm = () => {
+    setShowForm(false);
+    setForm(emptyForm);
+    setEditingId(null);
+  };
+
   const startEdit = (d) => {
     setEditingId(d._id);
     setForm({
@@ -60,9 +67,7 @@ export default function Drivers() {
       } else {
         await api.createDriver(form);
       }
-      setShowForm(false);
-      setForm(emptyForm);
-      setEditingId(null);
+      closeForm();
       load();
     } catch (err) {
       setError(err.message);
@@ -93,7 +98,7 @@ export default function Drivers() {
         )}
       </div>
 
-      {error && <div className="error-banner">{error}</div>}
+      {error && !showForm && <div className="error-banner">{error}</div>}
 
       <div className="filters">
         <div>
@@ -103,37 +108,39 @@ export default function Drivers() {
       </div>
 
       {showForm && canEdit && (
-        <form className="card" onSubmit={handleSubmit}>
-          <h2>{editingId ? 'Edit Driver' : 'New Driver'}</h2>
-          <div className="grid-form">
-            {!editingId && (
+        <Modal title={editingId ? 'Edit Driver' : 'New Driver'} size="md" onClose={closeForm}>
+          {error && <div className="error-banner">{error}</div>}
+          <form onSubmit={handleSubmit}>
+            <div className="grid-form">
+              {!editingId && (
+                <div>
+                  <label>Driver ID</label>
+                  <input value={form.driverId} onChange={update('driverId')} required />
+                </div>
+              )}
               <div>
-                <label>Driver ID</label>
-                <input value={form.driverId} onChange={update('driverId')} required />
+                <label>Driver Name</label>
+                <input value={form.driverName} onChange={update('driverName')} required />
               </div>
-            )}
-            <div>
-              <label>Driver Name</label>
-              <input value={form.driverName} onChange={update('driverName')} required />
+              <div>
+                <label>Employee ID (optional)</label>
+                <input value={form.employeeId} onChange={update('employeeId')} />
+              </div>
+              <div>
+                <label>License Number</label>
+                <input value={form.licenseNumber} onChange={update('licenseNumber')} required />
+              </div>
+              <div>
+                <label>License Expiry</label>
+                <input type="date" value={form.licenseExpiry} onChange={update('licenseExpiry')} required />
+              </div>
             </div>
-            <div>
-              <label>Employee ID (optional)</label>
-              <input value={form.employeeId} onChange={update('employeeId')} />
+            <div className="btn-row app-modal-actions">
+              <button className="btn secondary" type="button" onClick={closeForm}>Cancel</button>
+              <button className="btn" type="submit">{editingId ? 'Save Changes' : 'Create Driver'}</button>
             </div>
-            <div>
-              <label>License Number</label>
-              <input value={form.licenseNumber} onChange={update('licenseNumber')} required />
-            </div>
-            <div>
-              <label>License Expiry</label>
-              <input type="date" value={form.licenseExpiry} onChange={update('licenseExpiry')} required />
-            </div>
-          </div>
-          <div className="btn-row">
-            <button className="btn" type="submit">{editingId ? 'Save Changes' : 'Create Driver'}</button>
-            <button className="btn secondary" type="button" onClick={() => setShowForm(false)}>Cancel</button>
-          </div>
-        </form>
+          </form>
+        </Modal>
       )}
 
       <div className="card table-scroll">

@@ -6,6 +6,8 @@ import { api } from '../api/client';
 
 import Reports from './Reports';
 
+import { useRequestUi } from '../context/RequestUiContext';
+
 import {
 
   buildManagerExportSections,
@@ -73,6 +75,8 @@ function formatMileage(total) {
 
 
 function ApprovalQueue({ requests, stats, vehicles, onRefresh }) {
+
+  const { openDetail } = useRequestUi();
 
   const [search, setSearch] = useState('');
 
@@ -448,7 +452,7 @@ function ApprovalQueue({ requests, stats, vehicles, onRefresh }) {
 
                     </button>
 
-                    <Link to={`/requests/${r._id}`} className="btn-link">View</Link>
+                    <button type="button" className="btn-link" onClick={() => openDetail(r._id)}>View</button>
 
                   </td>
 
@@ -598,6 +602,8 @@ function ReadOnlyDrivers({ drivers }) {
 
 export default function ManagerDashboard() {
 
+  const { refreshKey } = useRequestUi();
+
   const [tab, setTab] = useState('approval');
 
   const [requests, setRequests] = useState([]);
@@ -652,7 +658,7 @@ export default function ManagerDashboard() {
 
     }
 
-  }, []);
+  }, [refreshKey]);
 
 
 

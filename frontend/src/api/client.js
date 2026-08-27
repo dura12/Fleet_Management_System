@@ -55,6 +55,12 @@ export const api = {
   completeRequest: (id, notes) => request(`/requests/${id}/complete`, { method: 'POST', body: notes !== undefined ? { notes } : {} }),
   overrideRequestStatus: (id, status) => request(`/requests/${id}/status`, { method: 'PATCH', body: { status } }),
 
+  getNotifications: (unreadOnly = false) =>
+    request(`/notifications${unreadOnly ? '?unreadOnly=true' : ''}`),
+  getUnreadNotificationCount: () => request('/notifications/unread-count'),
+  markNotificationRead: (id) => request(`/notifications/${id}/read`, { method: 'PATCH' }),
+  markAllNotificationsRead: () => request('/notifications/read-all', { method: 'POST' }),
+
   getUsers: () => request('/users'),
   getUser: (id) => request(`/users/${id}`),
   getUserStats: () => request('/users/stats'),

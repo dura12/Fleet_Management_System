@@ -5,8 +5,14 @@ import { useAuth } from '../context/AuthContext';
 import StatusBadge from '../components/StatusBadge';
 import { MAX_PASSENGERS, toDateInputValue, validatePassengers } from '../utils/requestForm';
 
-export default function RequestDetail() {
-  const { id } = useParams();
+export default function RequestDetail({
+  requestId,
+  embedded = false,
+  onClose,
+  onChanged,
+}) {
+  const params = useParams();
+  const id = requestId || params.id;
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -24,6 +30,12 @@ export default function RequestDetail() {
   const [tripNotes, setTripNotes] = useState('');
   const [busy, setBusy] = useState(false);
   const [editForm, setEditForm] = useState(null);
+
+  const finishClose = useCallback(() => {
+    onChanged?.();
+    if (onClose) onClose();
+    else navigate('/');
+  }, [onClose, onChanged, navigate]);
 
   const loadAssignment = async () => {
     const a = await api.getRequestAssignment(id);
@@ -91,6 +103,7 @@ export default function RequestDetail() {
     try {
       await action(...args);
       await load();
+      onChanged?.();
       if (action === api.completeRequest) {
         setVehicleId('');
         setDriverId('');
@@ -142,8 +155,9 @@ export default function RequestDetail() {
     setBusy(true);
     try {
       const result = await api.cancelRequest(id);
+      onChanged?.();
       if (result?.deleted) {
-        navigate('/');
+        finishClose();
         return;
       }
       setMessage('Request cancelled.');
@@ -156,8 +170,10 @@ export default function RequestDetail() {
   };
 
   return (
-    <div>
-      <Link to="/" className="btn secondary back-link">&larr; Back to list</Link>
+    <div className={embedded ? 'request-detail-embedded' : ''}>
+      {!embedded && (
+        <Link to="/" className="btn secondary back-link">&larr; Back to list</Link>
+      )}
       <div className="detail-header">
         <h1>{request.requestNumber}</h1>
         <div className="detail-badges">
