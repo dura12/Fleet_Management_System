@@ -12,6 +12,7 @@ export function RequestUiProvider({ children }) {
 
   const notifyChanged = useCallback(() => {
     setRefreshKey((k) => k + 1);
+    window.dispatchEvent(new CustomEvent('fms-notifications-refresh'));
   }, []);
 
   const openDetail = useCallback((id) => {
@@ -52,18 +53,12 @@ export function RequestUiProvider({ children }) {
         <Modal
           title="Request details"
           size="lg"
-          onClose={() => {
-            notifyChanged();
-            close();
-          }}
+          onClose={close}
         >
           <RequestDetail
             requestId={detailId}
             embedded
-            onClose={() => {
-              notifyChanged();
-              close();
-            }}
+            onClose={close}
             onChanged={notifyChanged}
           />
         </Modal>

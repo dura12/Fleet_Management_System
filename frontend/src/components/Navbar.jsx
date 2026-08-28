@@ -4,6 +4,8 @@ import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import BrandLogo from './BrandLogo';
 import NotificationBell from './NotificationBell';
+import ChangePasswordModal from './ChangePasswordModal';
+import ProfileMenu from './ProfileMenu';
 
 const ROLE_LABELS = {
   employee: 'Employee',
@@ -11,15 +13,6 @@ const ROLE_LABELS = {
   fleet_coordinator: 'Fleet Manager',
   admin: 'Administrator',
 };
-
-function initials(name) {
-  return (name || '?')
-    .split(' ')
-    .map((p) => p[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase();
-}
 
 function OtechTopBar() {
   return (
@@ -30,19 +23,7 @@ function OtechTopBar() {
   );
 }
 
-function UserIdentity({ user, roleLabel }) {
-  return (
-    <div className="nav-user-identity" title={`${user.fullName} · ${roleLabel}`}>
-      <div className="avatar">{initials(user.fullName)}</div>
-      <div className="nav-user-text">
-        <span className="nav-user-name">{user.fullName}</span>
-        <span className="nav-user-role">{roleLabel}</span>
-      </div>
-    </div>
-  );
-}
-
-function EmployeeNavbar({ user, roleLabel, onLogout }) {
+function EmployeeNavbar({ user, roleLabel, onLogout, onChangePassword }) {
   const [navSearch, setNavSearch] = useState('');
 
   useEffect(() => {
@@ -72,15 +53,19 @@ function EmployeeNavbar({ user, roleLabel, onLogout }) {
           <NotificationBell />
           <button type="button" className="icon-btn" title="History" aria-label="History">🕐</button>
           <a href="#" className="help-link" onClick={(e) => e.preventDefault()}>Help</a>
-          <UserIdentity user={user} roleLabel={roleLabel} />
-          <button type="button" className="link-btn logout-compact" onClick={onLogout}>Log out</button>
+          <ProfileMenu
+            user={user}
+            roleLabel={roleLabel}
+            onChangePassword={onChangePassword}
+            onLogout={onLogout}
+          />
         </div>
       </header>
     </>
   );
 }
 
-function CoordinatorNavbar({ user, roleLabel, onLogout }) {
+function CoordinatorNavbar({ user, roleLabel, onLogout, onChangePassword }) {
   const [pendingCount, setPendingCount] = useState(0);
   const [navOpen, setNavOpen] = useState(false);
   const location = useLocation();
@@ -142,11 +127,14 @@ function CoordinatorNavbar({ user, roleLabel, onLogout }) {
             >
               {navOpen ? '✕' : '☰'}
             </button>
-            <button type="button" className="icon-btn coordinator-desktop-only" title="Search" aria-label="Search">⌕</button>
             <NotificationBell />
             <a href="#" className="help-link coordinator-desktop-only" onClick={(e) => e.preventDefault()}>Help</a>
-            <UserIdentity user={user} roleLabel={roleLabel} />
-            <button type="button" className="link-btn logout-compact" onClick={onLogout}>Log out</button>
+            <ProfileMenu
+              user={user}
+              roleLabel={roleLabel}
+              onChangePassword={onChangePassword}
+              onLogout={onLogout}
+            />
           </div>
         </div>
         <nav className={`coordinator-mobile-nav${navOpen ? ' is-open' : ''}`} aria-label="Mobile navigation">
@@ -166,7 +154,7 @@ function CoordinatorNavbar({ user, roleLabel, onLogout }) {
   );
 }
 
-function AdminNavbar({ user, roleLabel, onLogout }) {
+function AdminNavbar({ user, roleLabel, onLogout, onChangePassword }) {
   const [navOpen, setNavOpen] = useState(false);
   const location = useLocation();
 
@@ -222,8 +210,12 @@ function AdminNavbar({ user, roleLabel, onLogout }) {
               {navOpen ? '✕' : '☰'}
             </button>
             <NotificationBell />
-            <UserIdentity user={user} roleLabel={roleLabel} />
-            <button type="button" className="link-btn logout-compact" onClick={onLogout}>Log out</button>
+            <ProfileMenu
+              user={user}
+              roleLabel={roleLabel}
+              onChangePassword={onChangePassword}
+              onLogout={onLogout}
+            />
           </div>
         </div>
         <nav className={`admin-mobile-nav${navOpen ? ' is-open' : ''}`} aria-label="Mobile navigation">
@@ -243,7 +235,7 @@ function AdminNavbar({ user, roleLabel, onLogout }) {
   );
 }
 
-function ManagerNavbar({ user, roleLabel, onLogout }) {
+function ManagerNavbar({ user, roleLabel, onLogout, onChangePassword }) {
   return (
     <>
       <OtechTopBar />
@@ -253,15 +245,19 @@ function ManagerNavbar({ user, roleLabel, onLogout }) {
         </div>
         <div className="navbar-right">
           <NotificationBell />
-          <UserIdentity user={user} roleLabel={roleLabel} />
-          <button type="button" className="link-btn logout-compact" onClick={onLogout}>Log out</button>
+          <ProfileMenu
+            user={user}
+            roleLabel={roleLabel}
+            onChangePassword={onChangePassword}
+            onLogout={onLogout}
+          />
         </div>
       </header>
     </>
   );
 }
 
-function StaffNavbar({ user, roleLabel, awaitingAssignment, onLogout }) {
+function StaffNavbar({ user, roleLabel, awaitingAssignment, onLogout, onChangePassword }) {
   const [navOpen, setNavOpen] = useState(false);
 
   return (
@@ -291,8 +287,6 @@ function StaffNavbar({ user, roleLabel, awaitingAssignment, onLogout }) {
               Reports{user.role === 'fleet_coordinator' && awaitingAssignment > 0 ? ` (${awaitingAssignment})` : ''}
             </NavLink>
           )}
-          <span className="user-info">{user.fullName} &middot; {roleLabel}</span>
-          <button type="button" className="link-btn logout-compact" onClick={onLogout}>Log out</button>
         </nav>
         <nav className="staff-desktop-nav">
           <NavLink to="/" end>Home</NavLink>
@@ -307,9 +301,13 @@ function StaffNavbar({ user, roleLabel, awaitingAssignment, onLogout }) {
               Reports{user.role === 'fleet_coordinator' && awaitingAssignment > 0 ? ` (${awaitingAssignment})` : ''}
             </NavLink>
           )}
-          <UserIdentity user={user} roleLabel={roleLabel} />
           <NotificationBell />
-          <button className="link-btn" onClick={onLogout}>Log out</button>
+          <ProfileMenu
+            user={user}
+            roleLabel={roleLabel}
+            onChangePassword={onChangePassword}
+            onLogout={onLogout}
+          />
         </nav>
       </div>
     </>
@@ -320,6 +318,7 @@ export default function Navbar() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [awaitingAssignment, setAwaitingAssignment] = useState(0);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
 
   useEffect(() => {
     if (user?.role === 'fleet_coordinator') {
@@ -334,30 +333,58 @@ export default function Navbar() {
     navigate('/login');
   };
 
+  const openPassword = () => setShowPasswordModal(true);
   const roleLabel = ROLE_LABELS[user.role] || user.role;
+  const passwordModal = showPasswordModal ? (
+    <ChangePasswordModal onClose={() => setShowPasswordModal(false)} />
+  ) : null;
 
   if (user.role === 'employee') {
-    return <EmployeeNavbar user={user} roleLabel={roleLabel} onLogout={handleLogout} />;
+    return (
+      <>
+        <EmployeeNavbar user={user} roleLabel={roleLabel} onLogout={handleLogout} onChangePassword={openPassword} />
+        {passwordModal}
+      </>
+    );
   }
 
   if (user.role === 'admin') {
-    return <AdminNavbar user={user} roleLabel={roleLabel} onLogout={handleLogout} />;
+    return (
+      <>
+        <AdminNavbar user={user} roleLabel={roleLabel} onLogout={handleLogout} onChangePassword={openPassword} />
+        {passwordModal}
+      </>
+    );
   }
 
   if (user.role === 'manager') {
-    return <ManagerNavbar user={user} roleLabel={roleLabel} onLogout={handleLogout} />;
+    return (
+      <>
+        <ManagerNavbar user={user} roleLabel={roleLabel} onLogout={handleLogout} onChangePassword={openPassword} />
+        {passwordModal}
+      </>
+    );
   }
 
   if (user.role === 'fleet_coordinator') {
-    return <CoordinatorNavbar user={user} roleLabel={roleLabel} onLogout={handleLogout} />;
+    return (
+      <>
+        <CoordinatorNavbar user={user} roleLabel={roleLabel} onLogout={handleLogout} onChangePassword={openPassword} />
+        {passwordModal}
+      </>
+    );
   }
 
   return (
-    <StaffNavbar
-      user={user}
-      roleLabel={roleLabel}
-      awaitingAssignment={awaitingAssignment}
-      onLogout={handleLogout}
-    />
+    <>
+      <StaffNavbar
+        user={user}
+        roleLabel={roleLabel}
+        awaitingAssignment={awaitingAssignment}
+        onLogout={handleLogout}
+        onChangePassword={openPassword}
+      />
+      {passwordModal}
+    </>
   );
 }

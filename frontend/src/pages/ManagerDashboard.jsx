@@ -8,6 +8,10 @@ import Reports from './Reports';
 
 import { useRequestUi } from '../context/RequestUiContext';
 
+import ConfirmDialog from '../components/ConfirmDialog';
+import DashboardFilters, { FilterSelect, filterDrivers, filterVehicles } from '../components/DashboardFilters';
+import { readCache, writeCache } from '../utils/sessionCache';
+
 import {
 
   buildManagerExportSections,
@@ -80,11 +84,15 @@ function ApprovalQueue({ requests, stats, vehicles, onRefresh }) {
 
   const [search, setSearch] = useState('');
 
+  const [queueFilter, setQueueFilter] = useState('');
+
   const [busyId, setBusyId] = useState(null);
 
   const [error, setError] = useState('');
 
   const [message, setMessage] = useState('');
+
+  const [confirmReject, setConfirmReject] = useState(null);
 
 
 
@@ -130,6 +138,10 @@ function ApprovalQueue({ requests, stats, vehicles, onRefresh }) {
 
       .filter((r) => {
 
+        if (queueFilter === 'urgent' && r.priority !== 'Urgent') return false;
+
+        if (queueFilter === 'overdue' && !r.isOverdue) return false;
+
         if (!q) return true;
 
         return (
@@ -160,7 +172,7 @@ function ApprovalQueue({ requests, stats, vehicles, onRefresh }) {
 
       });
 
-  }, [submitted, urgent, search]);
+  }, [submitted, urgent, search, queueFilter]);
 
 
 
@@ -192,6 +204,8 @@ function ApprovalQueue({ requests, stats, vehicles, onRefresh }) {
 
         setMessage('Request rejected.');
 
+        setConfirmReject(null);
+
       }
 
       await onRefresh();
@@ -205,6 +219,22 @@ function ApprovalQueue({ requests, stats, vehicles, onRefresh }) {
       setBusyId(null);
 
     }
+
+  };
+
+
+
+  const askReject = (request) => {
+
+    setConfirmReject({
+
+      title: 'Reject this request?',
+
+      message: `Reject ${request.requestNumber} from ${request.requester?.fullName || 'requester'}?`,
+
+      requestId: request._id,
+
+    });
 
   };
 
@@ -310,7 +340,7 @@ function ApprovalQueue({ requests, stats, vehicles, onRefresh }) {
 
               disabled={busyId === urgent._id}
 
-              onClick={() => runDecision(urgent._id, 'reject')}
+              onClick={() => askReject(urgent)}
 
             >
 
@@ -346,7 +376,7 @@ function ApprovalQueue({ requests, stats, vehicles, onRefresh }) {
 
         <h2>Standard Queue</h2>
 
-        <div className="standard-queue-tools">
+        <div className="standard-queue-tools filters">
 
           <input
 
@@ -359,6 +389,16 @@ function ApprovalQueue({ requests, stats, vehicles, onRefresh }) {
             onChange={(e) => setSearch(e.target.value)}
 
           />
+
+          <select value={queueFilter} onChange={(e) => setQueueFilter(e.target.value)} aria-label="Filter queue">
+
+            <option value="">All priorities</option>
+
+            <option value="urgent">Urgent only</option>
+
+            <option value="overdue">Overdue only</option>
+
+          </select>
 
         </div>
 
@@ -428,7 +468,7 @@ function ApprovalQueue({ requests, stats, vehicles, onRefresh }) {
 
                       disabled={busyId === r._id}
 
-                      onClick={() => runDecision(r._id, 'reject')}
+                      onClick={() => askReject(r)}
 
                     >
 
@@ -468,6 +508,18 @@ function ApprovalQueue({ requests, stats, vehicles, onRefresh }) {
 
       </div>
 
+      {confirmReject && (
+        <ConfirmDialog
+          title={confirmReject.title}
+          message={confirmReject.message}
+          confirmLabel="Reject"
+          danger
+          busy={busyId === confirmReject.requestId}
+          onCancel={() => setConfirmReject(null)}
+          onConfirm={() => runDecision(confirmReject.requestId, 'reject')}
+        />
+      )}
+
     </div>
 
   );
@@ -478,13 +530,43 @@ function ApprovalQueue({ requests, stats, vehicles, onRefresh }) {
 
 function ReadOnlyFleet({ vehicles }) {
 
+  const [search, setSearch] = useState('');
+
+  const [statusFilter, setStatusFilter] = useState('');
+
+  const filtered = useMemo(
+    () => filterVehicles(vehicles, { search, status: statusFilter }),
+    [vehicles, search, statusFilter],
+  );
+
   return (
+
+    <>
+
+      <DashboardFilters
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search vehicles…"
+      >
+        <FilterSelect
+          label="Status"
+          value={statusFilter}
+          onChange={setStatusFilter}
+          options={[
+            { value: '', label: 'All statuses' },
+            { value: 'Available', label: 'Available' },
+            { value: 'Assigned', label: 'Assigned' },
+            { value: 'Under Maintenance', label: 'Under Maintenance' },
+            { value: 'Inactive', label: 'Inactive' },
+          ]}
+        />
+      </DashboardFilters>
 
     <div className="manager-table-card table-scroll">
 
-      {vehicles.length === 0 ? (
+      {filtered.length === 0 ? (
 
-        <div className="empty-state">No vehicles found.</div>
+        <div className="empty-state">No vehicles match your filters.</div>
 
       ) : (
 
@@ -502,7 +584,7 @@ function ReadOnlyFleet({ vehicles }) {
 
           <tbody>
 
-            {vehicles.map((v) => (
+            {filtered.map((v) => (
 
               <tr key={v._id}>
 
@@ -532,6 +614,8 @@ function ReadOnlyFleet({ vehicles }) {
 
     </div>
 
+    </>
+
   );
 
 }
@@ -540,13 +624,42 @@ function ReadOnlyFleet({ vehicles }) {
 
 function ReadOnlyDrivers({ drivers }) {
 
+  const [search, setSearch] = useState('');
+
+  const [statusFilter, setStatusFilter] = useState('');
+
+  const filtered = useMemo(
+    () => filterDrivers(drivers, { search, status: statusFilter }),
+    [drivers, search, statusFilter],
+  );
+
   return (
+
+    <>
+
+      <DashboardFilters
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search drivers…"
+      >
+        <FilterSelect
+          label="Status"
+          value={statusFilter}
+          onChange={setStatusFilter}
+          options={[
+            { value: '', label: 'All drivers' },
+            { value: 'active', label: 'Active' },
+            { value: 'expired', label: 'License expired' },
+            { value: 'inactive', label: 'Inactive' },
+          ]}
+        />
+      </DashboardFilters>
 
     <div className="manager-table-card table-scroll">
 
-      {drivers.length === 0 ? (
+      {filtered.length === 0 ? (
 
-        <div className="empty-state">No drivers found.</div>
+        <div className="empty-state">No drivers match your filters.</div>
 
       ) : (
 
@@ -564,7 +677,7 @@ function ReadOnlyDrivers({ drivers }) {
 
           <tbody>
 
-            {drivers.map((d) => (
+            {filtered.map((d) => (
 
               <tr key={d._id}>
 
@@ -594,6 +707,8 @@ function ReadOnlyDrivers({ drivers }) {
 
     </div>
 
+    </>
+
   );
 
 }
@@ -604,17 +719,17 @@ export default function ManagerDashboard() {
 
   const { refreshKey } = useRequestUi();
 
+  const cached = readCache('manager-dashboard');
+
   const [tab, setTab] = useState('approval');
 
-  const [requests, setRequests] = useState([]);
+  const [requests, setRequests] = useState(cached?.requests ?? []);
 
-  const [stats, setStats] = useState(null);
+  const [stats, setStats] = useState(cached?.stats ?? null);
 
-  const [vehicles, setVehicles] = useState([]);
+  const [vehicles, setVehicles] = useState(cached?.vehicles ?? []);
 
-  const [drivers, setDrivers] = useState([]);
-
-  const [loading, setLoading] = useState(true);
+  const [drivers, setDrivers] = useState(cached?.drivers ?? []);
 
   const [exporting, setExporting] = useState(false);
 
@@ -648,13 +763,16 @@ export default function ManagerDashboard() {
 
       setDrivers(driverData);
 
+      writeCache('manager-dashboard', {
+        requests: reqData,
+        stats: queueStats,
+        vehicles: vehicleData,
+        drivers: driverData,
+      });
+
     } catch (err) {
 
       setError(err.message);
-
-    } finally {
-
-      setLoading(false);
 
     }
 
@@ -760,7 +878,7 @@ export default function ManagerDashboard() {
 
           className="btn btn-export manager-dash-export"
 
-          disabled={exporting || loading}
+          disabled={exporting}
 
           onClick={exportFullReport}
 
@@ -812,31 +930,29 @@ export default function ManagerDashboard() {
 
       <div className="manager-dash-body">
 
-        {loading ? (
-
-          <div className="empty-state">Loading…</div>
-
-        ) : tab === 'approval' ? (
+        <div hidden={tab !== 'approval'}>
 
           <ApprovalQueue requests={requests} stats={stats} vehicles={vehicles} onRefresh={load} />
 
-        ) : tab === 'fleet' ? (
+        </div>
+
+        <div hidden={tab !== 'fleet'}>
 
           <ReadOnlyFleet vehicles={vehicles} />
 
-        ) : tab === 'drivers' ? (
+        </div>
+
+        <div hidden={tab !== 'drivers'}>
 
           <ReadOnlyDrivers drivers={drivers} />
 
-        ) : (
+        </div>
 
-          <div className="manager-reports-embed">
+        <div className="manager-reports-embed" hidden={tab !== 'reports'}>
 
-            <Reports embedded />
+          <Reports embedded />
 
-          </div>
-
-        )}
+        </div>
 
       </div>
 

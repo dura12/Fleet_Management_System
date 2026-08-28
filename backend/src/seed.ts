@@ -146,12 +146,69 @@ async function seed() {
     },
   ]);
 
+  await NotificationModel.insertMany([
+    {
+      recipient: manager._id,
+      type: 'REQUEST_SUBMITTED',
+      title: 'New request submitted',
+      message: 'Abebe Kebede submitted REQ-0002 for Gerji.',
+      request: submittedReq._id,
+      requestNumber: 'REQ-0002',
+      readAt: null,
+    },
+    {
+      recipient: coordinator._id,
+      type: 'REQUEST_APPROVED',
+      title: 'Ready for assignment',
+      message: 'REQ-0003 to Robe was approved.',
+      request: approvedReq._id,
+      requestNumber: 'REQ-0003',
+      readAt: null,
+    },
+    {
+      recipient: admin._id,
+      type: 'REQUEST_SUBMITTED',
+      title: 'New request submitted',
+      message: 'Abebe Kebede submitted REQ-0002 for Gerji.',
+      request: submittedReq._id,
+      requestNumber: 'REQ-0002',
+      readAt: null,
+    },
+    {
+      recipient: employee._id,
+      type: 'REQUEST_APPROVED',
+      title: 'Request approved',
+      message: 'REQ-0003 was approved and is awaiting vehicle assignment.',
+      request: approvedReq._id,
+      requestNumber: 'REQ-0003',
+      readAt: null,
+    },
+    {
+      recipient: employee._id,
+      type: 'REQUEST_ASSIGNED',
+      title: 'Vehicle assigned',
+      message: 'REQ-0004: AA-12345 (Toyota Hiace) has been assigned.',
+      request: assignedReq._id,
+      requestNumber: 'REQ-0004',
+      readAt: null,
+    },
+    {
+      recipient: employee._id,
+      type: 'REQUEST_COMPLETED',
+      title: 'Trip completed',
+      message: 'REQ-0005 has been marked completed.',
+      request: completedReq._id,
+      requestNumber: 'REQ-0005',
+      readAt: new Date(Date.now() - 2 * 86400000),
+    },
+  ]);
+
   console.log('Seed complete. Demo accounts (password: Password123):');
   console.log('  admin@otech.com      (Administrator)');
   console.log('  employee@otech.com   (Employee) — 5 sample requests');
   console.log('  manager@otech.com    (Manager)');
   console.log('  fleet@otech.com      (Fleet Coordinator)');
-  console.log('Note: Re-running seed clears ALL users, vehicles, drivers, requests, and assignments.');
+  console.log('Note: Re-running seed clears ALL users, vehicles, drivers, requests, assignments, and notifications.');
   console.log('Note: DRV-002 has an expired license on purpose, to demonstrate the assignment validation.');
 
   await mongoose.disconnect();

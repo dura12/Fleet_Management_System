@@ -40,6 +40,19 @@ export class UsersService {
     return user;
   }
 
+  async findByIdWithPassword(id: string): Promise<UserDocument> {
+    const user = await this.userModel.findById(id);
+    if (!user) throw new NotFoundException('User not found.');
+    return user;
+  }
+
+  async setPasswordHash(id: string, passwordHash: string): Promise<void> {
+    const user = await this.userModel.findById(id);
+    if (!user) throw new NotFoundException('User not found.');
+    user.passwordHash = passwordHash;
+    await user.save();
+  }
+
   async findAll(): Promise<UserDocument[]> {
     return this.userModel.find().select('-passwordHash').sort({ fullName: 1 });
   }

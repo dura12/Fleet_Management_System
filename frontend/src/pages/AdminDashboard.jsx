@@ -4,6 +4,9 @@ import { api } from '../api/client';
 import Reports from './Reports';
 import Modal from '../components/Modal';
 import { useRequestUi } from '../context/RequestUiContext';
+import ConfirmDialog from '../components/ConfirmDialog';
+import DashboardFilters, { FilterSelect, filterUsers } from '../components/DashboardFilters';
+import { readCache, writeCache } from '../utils/sessionCache';
 
 const ROLE_OPTIONS = [
   { value: 'employee', label: 'Employee / Requester' },
@@ -186,20 +189,15 @@ function UserFormModal({ user, onClose, onSaved }) {
 
 function UserManagement({ users, onRefresh }) {
   const [search, setSearch] = useState('');
+  const [roleFilter, setRoleFilter] = useState('');
+  const [activeFilter, setActiveFilter] = useState('');
   const [modalUser, setModalUser] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return users;
-    return users.filter(
-      (u) =>
-        u.fullName?.toLowerCase().includes(q) ||
-        u.email?.toLowerCase().includes(q) ||
-        u.employeeId?.toLowerCase().includes(q) ||
-        u.department?.toLowerCase().includes(q),
-    );
-  }, [users, search]);
+  const filtered = useMemo(
+    () => filterUsers(users, { search, role: roleFilter, active: activeFilter }),
+    [users, search, roleFilter, activeFilter],
+  );
 
   return (
     <div className="admin-panel">
@@ -212,14 +210,31 @@ function UserManagement({ users, onRefresh }) {
           + New User
         </button>
       </div>
-      <div className="admin-toolbar">
-        <input
-          type="search"
-          placeholder="Search users…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
+      <DashboardFilters
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search users…"
+      >
+        <FilterSelect
+          label="Role"
+          value={roleFilter}
+          onChange={setRoleFilter}
+          options={[
+            { value: '', label: 'All roles' },
+            ...ROLE_OPTIONS.map((r) => ({ value: r.value, label: r.label })),
+          ]}
         />
-      </div>
+        <FilterSelect
+          label="Account"
+          value={activeFilter}
+          onChange={setActiveFilter}
+          options={[
+            { value: '', label: 'All accounts' },
+            { value: 'active', label: 'Active only' },
+            { value: 'inactive', label: 'Inactive only' },
+          ]}
+        />
+      </DashboardFilters>
       <div className="table-wrap">
         <table className="data-table responsive-table admin-users-table">
           <thead>
@@ -275,33 +290,49 @@ function RequestOversight({ requests, onRefresh }) {
   const { openDetail } = useRequestUi();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [priorityFilter, setPriorityFilter] = useState('');
   const [busyId, setBusyId] = useState(null);
   const [error, setError] = useState('');
+  const [confirmOverride, setConfirmOverride] = useState(null);
 
   const filtered = useMemo(() => {
     let rows = requests;
     if (statusFilter) rows = rows.filter((r) => r.status === statusFilter);
+    if (priorityFilter === 'urgent') rows = rows.filter((r) => r.priority === 'Urgent');
+    if (priorityFilter === 'overdue') rows = rows.filter((r) => r.isOverdue);
     const q = search.trim().toLowerCase();
     if (!q) return rows;
     return rows.filter(
       (r) =>
         r.requestNumber?.toLowerCase().includes(q) ||
         r.destination?.toLowerCase().includes(q) ||
-        r.requester?.fullName?.toLowerCase().includes(q),
+        r.requester?.fullName?.toLowerCase().includes(q) ||
+        r.purpose?.toLowerCase().includes(q),
     );
-  }, [requests, search, statusFilter]);
+  }, [requests, search, statusFilter, priorityFilter]);
 
   const handleOverride = async (id, status) => {
     setError('');
     setBusyId(id);
     try {
       await api.overrideRequestStatus(id, status);
+      setConfirmOverride(null);
       await onRefresh();
     } catch (err) {
       setError(err.message);
     } finally {
       setBusyId(null);
     }
+  };
+
+  const askOverride = (request, nextStatus) => {
+    if (nextStatus === request.status) return;
+    setConfirmOverride({
+      title: 'Change request status?',
+      message: `Set ${request.requestNumber} from "${request.status}" to "${nextStatus}"?`,
+      requestId: request._id,
+      nextStatus,
+    });
   };
 
   return (
@@ -313,20 +344,31 @@ function RequestOversight({ requests, onRefresh }) {
         </div>
       </div>
       {error && <div className="error-banner">{error}</div>}
-      <div className="admin-toolbar">
-        <input
-          type="search"
-          placeholder="Search requests…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
+      <DashboardFilters
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search requests…"
+      >
+        <FilterSelect
+          label="Status"
+          value={statusFilter}
+          onChange={setStatusFilter}
+          options={[
+            { value: '', label: 'All statuses' },
+            ...REQUEST_STATUSES.map((s) => ({ value: s, label: s })),
+          ]}
         />
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-          <option value="">All statuses</option>
-          {REQUEST_STATUSES.map((s) => (
-            <option key={s} value={s}>{s}</option>
-          ))}
-        </select>
-      </div>
+        <FilterSelect
+          label="Priority"
+          value={priorityFilter}
+          onChange={setPriorityFilter}
+          options={[
+            { value: '', label: 'All priorities' },
+            { value: 'urgent', label: 'Urgent only' },
+            { value: 'overdue', label: 'Overdue only' },
+          ]}
+        />
+      </DashboardFilters>
       <div className="table-wrap">
         <table className="data-table responsive-table admin-requests-table">
           <thead>
@@ -358,7 +400,7 @@ function RequestOversight({ requests, onRefresh }) {
                     className="admin-override-select"
                     value={r.status}
                     disabled={busyId === r._id}
-                    onChange={(e) => handleOverride(r._id, e.target.value)}
+                    onChange={(e) => askOverride(r, e.target.value)}
                   >
                     {REQUEST_STATUSES.map((s) => (
                       <option key={s} value={s}>{s}</option>
@@ -371,20 +413,32 @@ function RequestOversight({ requests, onRefresh }) {
         </table>
         {filtered.length === 0 && <p className="empty-state">No requests found.</p>}
       </div>
+
+      {confirmOverride && (
+        <ConfirmDialog
+          title={confirmOverride.title}
+          message={confirmOverride.message}
+          confirmLabel="Change status"
+          danger
+          busy={busyId === confirmOverride.requestId}
+          onCancel={() => setConfirmOverride(null)}
+          onConfirm={() => handleOverride(confirmOverride.requestId, confirmOverride.nextStatus)}
+        />
+      )}
     </div>
   );
 }
 
 export default function AdminDashboard() {
   const { refreshKey } = useRequestUi();
+  const cached = readCache('admin-dashboard');
   const [tab, setTab] = useState('overview');
-  const [users, setUsers] = useState([]);
-  const [requests, setRequests] = useState([]);
-  const [vehicles, setVehicles] = useState([]);
-  const [drivers, setDrivers] = useState([]);
-  const [userStats, setUserStats] = useState(null);
-  const [requestStats, setRequestStats] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [users, setUsers] = useState(cached?.users ?? []);
+  const [requests, setRequests] = useState(cached?.requests ?? []);
+  const [vehicles, setVehicles] = useState(cached?.vehicles ?? []);
+  const [drivers, setDrivers] = useState(cached?.drivers ?? []);
+  const [userStats, setUserStats] = useState(cached?.userStats ?? null);
+  const [requestStats, setRequestStats] = useState(cached?.requestStats ?? null);
   const [error, setError] = useState('');
 
   const load = useCallback(async () => {
@@ -404,18 +458,22 @@ export default function AdminDashboard() {
       setDrivers(driverData);
       setUserStats(uStats);
       setRequestStats(rStats);
+      writeCache('admin-dashboard', {
+        users: userData,
+        requests: reqData,
+        vehicles: vehicleData,
+        drivers: driverData,
+        userStats: uStats,
+        requestStats: rStats,
+      });
     } catch (err) {
       setError(err.message);
-    } finally {
-      setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     load();
   }, [load, refreshKey]);
-
-  if (loading) return <p className="loading-msg">Loading…</p>;
 
   return (
     <div className="admin-dashboard">
@@ -465,7 +523,9 @@ export default function AdminDashboard() {
 
       {tab === 'users' && <UserManagement users={users} onRefresh={load} />}
       {tab === 'requests' && <RequestOversight requests={requests} onRefresh={load} />}
-      {tab === 'reports' && <Reports />}
+      <div className="admin-reports-embed" hidden={tab !== 'reports'}>
+        <Reports embedded />
+      </div>
     </div>
   );
 }

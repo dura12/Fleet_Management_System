@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import Modal from '../components/Modal';
+import ConfirmDialog from '../components/ConfirmDialog';
+import { readCache, writeCache } from '../utils/sessionCache';
 
 const emptyForm = { driverId: '', driverName: '', employeeId: '', licenseNumber: '', licenseExpiry: '' };
 
@@ -12,18 +14,22 @@ function isExpired(date) {
 export default function Drivers() {
   const { user } = useAuth();
   const canEdit = user.role === 'fleet_coordinator' || user.role === 'admin';
-  const [drivers, setDrivers] = useState([]);
   const [search, setSearch] = useState('');
+  const [drivers, setDrivers] = useState(() => readCache('drivers:', []));
   const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [error, setError] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState(null);
 
   const load = async () => {
+    const cacheKey = `drivers:${search}`;
     try {
       const params = {};
       if (search) params.search = search;
-      setDrivers(await api.getDrivers(params));
+      const data = await api.getDrivers(params);
+      setDrivers(data);
+      writeCache(cacheKey, data);
     } catch (err) {
       setError(err.message);
     }
@@ -74,14 +80,23 @@ export default function Drivers() {
     }
   };
 
-  const handleDelete = async (id) => {
+  const handleDelete = async (driver) => {
     setError('');
     try {
-      await api.deleteDriver(id);
+      await api.deleteDriver(driver._id);
+      setConfirmDelete(null);
       load();
     } catch (err) {
       setError(err.message);
     }
+  };
+
+  const askDelete = (driver) => {
+    setConfirmDelete({
+      title: 'Delete driver?',
+      message: `Remove ${driver.driverName} (${driver.driverId}) from the roster? This cannot be undone.`,
+      driver,
+    });
   };
 
   return (
@@ -145,7 +160,7 @@ export default function Drivers() {
 
       <div className="card table-scroll">
         {drivers.length === 0 ? (
-          <div className="empty-state">No drivers found.</div>
+          <div className="empty-state">🧑‍✈️ No drivers found.</div>
         ) : (
           <table className="responsive-table">
             <thead>
@@ -172,7 +187,7 @@ export default function Drivers() {
                   {canEdit && (
                     <td className="actions" data-label="Actions">
                       <button className="btn secondary" type="button" onClick={() => startEdit(d)}>Edit</button>{' '}
-                      <button className="btn danger" type="button" onClick={() => handleDelete(d._id)}>Delete</button>
+                      <button className="btn danger" type="button" onClick={() => askDelete(d)}>Delete</button>
                     </td>
                   )}
                 </tr>
@@ -181,6 +196,17 @@ export default function Drivers() {
           </table>
         )}
       </div>
+
+      {confirmDelete && (
+        <ConfirmDialog
+          title={confirmDelete.title}
+          message={confirmDelete.message}
+          confirmLabel="Delete"
+          danger
+          onCancel={() => setConfirmDelete(null)}
+          onConfirm={() => handleDelete(confirmDelete.driver)}
+        />
+      )}
     </div>
   );
 }

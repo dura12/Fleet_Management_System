@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api/client';
 import StatusBadge from '../components/StatusBadge';
+import { readCache, writeCache } from '../utils/sessionCache';
 import {
   buildAssignmentHistoryExport,
   buildRequestsByStatusExport,
@@ -14,38 +15,40 @@ const TABS = [
   { key: 'assignment-history', label: 'Assignment History', shortLabel: 'History' },
 ];
 
+const FETCHERS = {
+  'vehicle-register': api.vehicleRegister,
+  'requests-by-status': api.requestsByStatus,
+  'assignment-history': api.assignmentHistory,
+};
+
 export default function Reports({ embedded = false }) {
   const [tab, setTab] = useState('vehicle-register');
-  const [data, setData] = useState(null);
+  const [cache, setCache] = useState(() => readCache('reports', {}));
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
+  const cacheRef = useRef(cache);
+  cacheRef.current = cache;
 
-  const selectTab = (key) => {
-    if (key === tab) return;
-    setTab(key);
-    setData(null);
-    setLoading(true);
-    setError('');
-  };
+  const data = cache[tab];
 
   useEffect(() => {
-    let cancelled = false;
-    const fetcher = {
-      'vehicle-register': api.vehicleRegister,
-      'requests-by-status': api.requestsByStatus,
-      'assignment-history': api.assignmentHistory,
-    }[tab];
+    if (cacheRef.current[tab] != null) return undefined;
 
-    fetcher()
+    let cancelled = false;
+    setError('');
+
+    FETCHERS[tab]()
       .then((result) => {
-        if (!cancelled) setData(result);
+        if (!cancelled) {
+          setCache((prev) => {
+            const next = { ...prev, [tab]: result };
+            writeCache('reports', next);
+            return next;
+          });
+        }
       })
       .catch((err) => {
         if (!cancelled) setError(err.message);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
       });
 
     return () => { cancelled = true; };
@@ -55,14 +58,10 @@ export default function Reports({ embedded = false }) {
     setDownloading(true);
     setError('');
     try {
-      let reportData = data;
+      let reportData = cacheRef.current[tab];
       if (!reportData) {
-        const fetcher = {
-          'vehicle-register': api.vehicleRegister,
-          'requests-by-status': api.requestsByStatus,
-          'assignment-history': api.assignmentHistory,
-        }[tab];
-        reportData = await fetcher();
+        reportData = await FETCHERS[tab]();
+        setCache((prev) => ({ ...prev, [tab]: reportData }));
       }
 
       let sections;
@@ -84,7 +83,7 @@ export default function Reports({ embedded = false }) {
     } finally {
       setDownloading(false);
     }
-  }, [tab, data]);
+  }, [tab]);
 
   const activeTab = TABS.find((t) => t.key === tab);
 
@@ -106,7 +105,7 @@ export default function Reports({ embedded = false }) {
               key={t.key}
               type="button"
               className={`btn reports-tab-btn ${tab === t.key ? '' : 'secondary'}`}
-              onClick={() => selectTab(t.key)}
+              onClick={() => setTab(t.key)}
             >
               <span className="reports-tab-long">{t.label}</span>
               <span className="reports-tab-short">{t.shortLabel}</span>
@@ -116,7 +115,7 @@ export default function Reports({ embedded = false }) {
         <button
           type="button"
           className="btn secondary reports-download-btn"
-          disabled={loading || downloading}
+          disabled={downloading}
           onClick={downloadReport}
         >
           {downloading ? 'Downloading…' : 'Download CSV'}
@@ -125,13 +124,11 @@ export default function Reports({ embedded = false }) {
 
       {error && <div className="error-banner">{error}</div>}
 
-      <div className="card reports-card" key={tab}>
+      <div className="card reports-card">
         {!embedded && activeTab && (
           <h2 className="reports-card-title">{activeTab.label}</h2>
         )}
-        {loading ? (
-          <div className="empty-state">Loading…</div>
-        ) : tab === 'vehicle-register' ? (
+        {tab === 'vehicle-register' ? (
           <VehicleRegisterTable data={data} />
         ) : tab === 'requests-by-status' ? (
           <RequestsByStatusTable data={data} />

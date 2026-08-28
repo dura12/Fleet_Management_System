@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import StatusBadge from '../components/StatusBadge';
+import ConfirmDialog from '../components/ConfirmDialog';
 import { MAX_PASSENGERS, toDateInputValue, validatePassengers } from '../utils/requestForm';
 
 export default function RequestDetail({
@@ -30,6 +31,7 @@ export default function RequestDetail({
   const [tripNotes, setTripNotes] = useState('');
   const [busy, setBusy] = useState(false);
   const [editForm, setEditForm] = useState(null);
+  const [confirmAction, setConfirmAction] = useState(null);
 
   const finishClose = useCallback(() => {
     onChanged?.();
@@ -155,6 +157,7 @@ export default function RequestDetail({
     setBusy(true);
     try {
       const result = await api.cancelRequest(id);
+      setConfirmAction(null);
       onChanged?.();
       if (result?.deleted) {
         finishClose();
@@ -167,6 +170,58 @@ export default function RequestDetail({
     } finally {
       setBusy(false);
     }
+  };
+
+  const askCancelRequest = () => {
+    const isDraft = request?.status === 'Draft';
+    setConfirmAction({
+      title: isDraft ? 'Discard this request?' : 'Cancel this request?',
+      message: isDraft
+        ? 'This draft will be permanently removed.'
+        : 'The trip will be cancelled and any assigned vehicle will be released.',
+      confirmLabel: isDraft ? 'Yes, discard' : 'Yes, cancel',
+      danger: true,
+      onConfirm: cancelRequest,
+    });
+  };
+
+  const askRejectRequest = () => {
+    setConfirmAction({
+      title: 'Reject this request?',
+      message: rejectionReason.trim()
+        ? `Reason: ${rejectionReason.trim()}`
+        : 'The requester will be notified that this request was rejected.',
+      confirmLabel: 'Reject',
+      danger: true,
+      onConfirm: async () => {
+        setBusy(true);
+        try {
+          await api.rejectRequest(id, rejectionReason);
+          setConfirmAction(null);
+          setMessage('Request rejected.');
+          onChanged?.();
+          await load();
+        } catch (err) {
+          setError(err.message);
+        } finally {
+          setBusy(false);
+        }
+      },
+    });
+  };
+
+  const askAdminOverride = (nextStatus) => {
+    if (nextStatus === request?.status) return;
+    setConfirmAction({
+      title: 'Change request status?',
+      message: `Set ${request.requestNumber} from "${request.status}" to "${nextStatus}"?`,
+      confirmLabel: 'Change status',
+      danger: true,
+      onConfirm: async () => {
+        await run(api.overrideRequestStatus, id, nextStatus);
+        setConfirmAction(null);
+      },
+    });
   };
 
   return (
@@ -222,7 +277,7 @@ export default function RequestDetail({
           <div className="btn-row">
             <button className="btn secondary" disabled={busy} onClick={saveDraft}>Save Changes</button>
             <button className="btn" disabled={busy} onClick={() => run(api.submitRequest, id)}>Submit for Approval</button>
-            <button className="btn danger" disabled={busy} onClick={cancelRequest}>Cancel Request</button>
+            <button className="btn danger" disabled={busy} onClick={askCancelRequest}>Cancel Request</button>
           </div>
         </div>
       )}
@@ -231,7 +286,7 @@ export default function RequestDetail({
         <div className="card">
           <h2>Actions</h2>
           <div className="btn-row">
-            <button className="btn danger" disabled={busy} onClick={cancelRequest}>Cancel Request</button>
+            <button className="btn danger" disabled={busy} onClick={askCancelRequest}>Cancel Request</button>
           </div>
         </div>
       )}
@@ -241,7 +296,7 @@ export default function RequestDetail({
           <h2>Cancel Trip</h2>
           <p className="subtitle">Cancelling releases any assigned vehicle back to Available.</p>
           <div className="btn-row">
-            <button className="btn danger" disabled={busy} onClick={cancelRequest}>Cancel Request</button>
+            <button className="btn danger" disabled={busy} onClick={askCancelRequest}>Cancel Request</button>
           </div>
         </div>
       )}
@@ -255,7 +310,7 @@ export default function RequestDetail({
           <textarea value={rejectionReason} onChange={(e) => setRejectionReason(e.target.value)} />
           <div className="btn-row">
             <button className="btn success" disabled={busy} onClick={() => run(api.approveRequest, id)}>Approve</button>
-            <button className="btn danger" disabled={busy} onClick={() => run(api.rejectRequest, id, rejectionReason)}>Reject</button>
+            <button className="btn danger" disabled={busy} onClick={askRejectRequest}>Reject</button>
           </div>
         </div>
       )}
@@ -347,8 +402,8 @@ export default function RequestDetail({
           <p className="subtitle">Force a workflow status change. Vehicle resources are released when leaving an active assignment.</p>
           <div className="btn-row">
             <select
-              defaultValue={request.status}
-              onChange={(e) => run(api.overrideRequestStatus, id, e.target.value)}
+              value={request.status}
+              onChange={(e) => askAdminOverride(e.target.value)}
               disabled={busy}
             >
               {['Draft', 'Submitted', 'Approved', 'Rejected', 'Vehicle Assigned', 'Completed', 'Cancelled'].map((s) => (
@@ -370,6 +425,18 @@ export default function RequestDetail({
             {assignment.notes && <div className="full"><label>Trip Notes</label><div>{assignment.notes}</div></div>}
           </div>
         </div>
+      )}
+
+      {confirmAction && (
+        <ConfirmDialog
+          title={confirmAction.title}
+          message={confirmAction.message}
+          confirmLabel={confirmAction.confirmLabel}
+          danger={confirmAction.danger}
+          busy={busy}
+          onCancel={() => setConfirmAction(null)}
+          onConfirm={confirmAction.onConfirm}
+        />
       )}
     </div>
   );

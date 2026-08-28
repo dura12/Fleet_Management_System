@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import { useRequestUi } from '../context/RequestUiContext';
+import DashboardFilters, { FilterSelect, filterDrivers, filterRequests, filterVehicles } from '../components/DashboardFilters';
+import { readCache, writeCache } from '../utils/sessionCache';
 
 function formatQueueDate(dateStr) {
   const d = new Date(dateStr);
@@ -72,13 +74,17 @@ function DriverListItem({ driver }) {
 
 export default function FleetCoordinatorDashboard() {
   const { openDetail, refreshKey } = useRequestUi();
-  const [requests, setRequests] = useState([]);
-  const [vehicles, setVehicles] = useState([]);
-  const [drivers, setDrivers] = useState([]);
-  const [assignments, setAssignments] = useState({});
-  const [stats, setStats] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const cached = readCache('fleet-dashboard');
+  const [requests, setRequests] = useState(cached?.requests ?? []);
+  const [vehicles, setVehicles] = useState(cached?.vehicles ?? []);
+  const [drivers, setDrivers] = useState(cached?.drivers ?? []);
+  const [assignments, setAssignments] = useState(cached?.assignments ?? {});
+  const [stats, setStats] = useState(cached?.stats ?? null);
   const [error, setError] = useState('');
+  const [search, setSearch] = useState('');
+  const [queueFilter, setQueueFilter] = useState('');
+  const [vehicleFilter, setVehicleFilter] = useState('');
+  const [driverFilter, setDriverFilter] = useState('');
 
   const load = useCallback(async () => {
     setError('');
@@ -105,11 +111,17 @@ export default function FleetCoordinatorDashboard() {
           }
         }),
       );
-      setAssignments(Object.fromEntries(pairs));
+      const assignmentMap = Object.fromEntries(pairs);
+      setAssignments(assignmentMap);
+      writeCache('fleet-dashboard', {
+        requests: reqData,
+        vehicles: vehicleData,
+        drivers: driverData,
+        stats: queueStats,
+        assignments: assignmentMap,
+      });
     } catch (err) {
       setError(err.message);
-    } finally {
-      setLoading(false);
     }
   }, []);
 
@@ -160,19 +172,75 @@ export default function FleetCoordinatorDashboard() {
     [vehicles],
   );
 
+  const filteredPending = useMemo(
+    () => filterRequests(pendingAssignment, { search, priority: queueFilter }),
+    [pendingAssignment, search, queueFilter],
+  );
+
+  const filteredActiveTrips = useMemo(
+    () => filterRequests(activeTrips, { search }),
+    [activeTrips, search],
+  );
+
+  const filteredVehicles = useMemo(
+    () => filterVehicles(sortedVehicles, { search, status: vehicleFilter }),
+    [sortedVehicles, search, vehicleFilter],
+  );
+
+  const filteredReadyDrivers = useMemo(
+    () => filterDrivers(readyDrivers, { search, status: driverFilter }),
+    [readyDrivers, search, driverFilter],
+  );
+
   useEffect(() => {
     window.dispatchEvent(new CustomEvent('coordinator-pending-count', {
       detail: stats?.awaitingAssignment ?? pendingAssignment.length,
     }));
   }, [stats, pendingAssignment.length]);
 
-  if (loading) {
-    return <div className="empty-state">Loading…</div>;
-  }
-
   return (
     <div className="coordinator-dashboard">
       {error && <div className="error-banner">{error}</div>}
+
+      <DashboardFilters
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search requests, vehicles, drivers…"
+      >
+        <FilterSelect
+          label="Queue"
+          value={queueFilter}
+          onChange={setQueueFilter}
+          options={[
+            { value: '', label: 'All priorities' },
+            { value: 'urgent', label: 'Urgent only' },
+            { value: 'overdue', label: 'Overdue only' },
+          ]}
+        />
+        <FilterSelect
+          label="Vehicle status"
+          value={vehicleFilter}
+          onChange={setVehicleFilter}
+          options={[
+            { value: '', label: 'All vehicles' },
+            { value: 'Available', label: 'Available' },
+            { value: 'Assigned', label: 'Assigned' },
+            { value: 'Under Maintenance', label: 'Under Maintenance' },
+            { value: 'Inactive', label: 'Inactive' },
+          ]}
+        />
+        <FilterSelect
+          label="Driver status"
+          value={driverFilter}
+          onChange={setDriverFilter}
+          options={[
+            { value: '', label: 'All ready drivers' },
+            { value: 'active', label: 'Active license' },
+            { value: 'expired', label: 'Expired license' },
+            { value: 'inactive', label: 'Inactive' },
+          ]}
+        />
+      </DashboardFilters>
 
       <div className="coordinator-summary-mobile">
         <div className="coordinator-stat">
@@ -198,16 +266,16 @@ export default function FleetCoordinatorDashboard() {
           <div className="panel-header">
             <h2>
               Assignment Queue
-              {pendingAssignment.length > 0 && (
-                <span className="panel-badge">{pendingAssignment.length} Pending</span>
+              {filteredPending.length > 0 && (
+                <span className="panel-badge">{filteredPending.length} Pending</span>
               )}
             </h2>
           </div>
           <div className="panel-body queue-cards">
-            {pendingAssignment.length === 0 ? (
-              <div className="panel-empty">No approved requests awaiting assignment.</div>
+            {filteredPending.length === 0 ? (
+              <div className="panel-empty">No approved requests match your filters.</div>
             ) : (
-              pendingAssignment.map((r) => <AssignmentQueueCard key={r._id} request={r} onOpen={openDetail} />)
+              filteredPending.map((r) => <AssignmentQueueCard key={r._id} request={r} onOpen={openDetail} />)
             )}
           </div>
         </section>
@@ -218,10 +286,10 @@ export default function FleetCoordinatorDashboard() {
             <Link to="/vehicles" className="panel-add" title="Manage vehicles">+</Link>
           </div>
           <div className="panel-body fleet-list">
-            {sortedVehicles.length === 0 ? (
-              <div className="panel-empty">No vehicles registered.</div>
+            {filteredVehicles.length === 0 ? (
+              <div className="panel-empty">No vehicles match your filters.</div>
             ) : (
-              sortedVehicles.map((v) => <VehicleListItem key={v._id} vehicle={v} />)
+              filteredVehicles.map((v) => <VehicleListItem key={v._id} vehicle={v} />)
             )}
           </div>
         </section>
@@ -232,8 +300,8 @@ export default function FleetCoordinatorDashboard() {
             <Link to="/reports" className="panel-link">View All</Link>
           </div>
           <div className="panel-body table-scroll">
-            {activeTrips.length === 0 ? (
-              <div className="panel-empty">No trips in progress.</div>
+            {filteredActiveTrips.length === 0 ? (
+              <div className="panel-empty">No active trips match your search.</div>
             ) : (
               <table className="active-table responsive-table">
                 <thead>
@@ -245,7 +313,7 @@ export default function FleetCoordinatorDashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {activeTrips.map((r) => {
+                  {filteredActiveTrips.map((r) => {
                     const a = assignments[r._id];
                     return (
                       <tr key={r._id}>
@@ -275,10 +343,10 @@ export default function FleetCoordinatorDashboard() {
             <Link to="/drivers" className="panel-add" title="Manage drivers">+</Link>
           </div>
           <div className="panel-body fleet-list">
-            {readyDrivers.length === 0 ? (
-              <div className="panel-empty">No drivers available right now.</div>
+            {filteredReadyDrivers.length === 0 ? (
+              <div className="panel-empty">No drivers match your filters.</div>
             ) : (
-              readyDrivers.map((d) => <DriverListItem key={d._id} driver={d} />)
+              filteredReadyDrivers.map((d) => <DriverListItem key={d._id} driver={d} />)
             )}
           </div>
         </section>

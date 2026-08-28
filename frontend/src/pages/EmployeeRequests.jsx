@@ -2,6 +2,7 @@ import { Fragment, useEffect, useMemo, useState } from 'react';
 import { api } from '../api/client';
 import EmployeeStatusBadge from '../components/EmployeeStatusBadge';
 import { useRequestUi } from '../context/RequestUiContext';
+import { readCache, writeCache } from '../utils/sessionCache';
 
 const PAGE_SIZE = 5;
 
@@ -19,8 +20,7 @@ function formatTravelDate(dateStr) {
 
 export default function EmployeeRequests() {
   const { openCreate, openDetail, refreshKey } = useRequestUi();
-  const [requests, setRequests] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [requests, setRequests] = useState(() => readCache('employee-requests', []));
   const [error, setError] = useState('');
   const [tab, setTab] = useState('all');
   const [search, setSearch] = useState('');
@@ -28,15 +28,21 @@ export default function EmployeeRequests() {
   const [page, setPage] = useState(1);
   const [expandedId, setExpandedId] = useState(null);
   const [assignments, setAssignments] = useState({});
-  const [loadingAssignment, setLoadingAssignment] = useState(null);
 
   useEffect(() => {
-    setLoading(true);
+    let cancelled = false;
     setError('');
     api.getRequests()
-      .then(setRequests)
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
+      .then((data) => {
+        if (!cancelled) {
+          setRequests(data);
+          writeCache('employee-requests', data);
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err.message);
+      });
+    return () => { cancelled = true; };
   }, [refreshKey]);
 
   useEffect(() => {
@@ -76,16 +82,13 @@ export default function EmployeeRequests() {
       return;
     }
     setExpandedId(request._id);
-    if (assignments[request._id]) return;
+    if (assignments[request._id] !== undefined) return;
 
-    setLoadingAssignment(request._id);
     try {
       const data = await api.getRequestAssignment(request._id);
       setAssignments((prev) => ({ ...prev, [request._id]: data }));
     } catch {
       setAssignments((prev) => ({ ...prev, [request._id]: null }));
-    } finally {
-      setLoadingAssignment(null);
     }
   };
 
@@ -125,9 +128,7 @@ export default function EmployeeRequests() {
       </div>
 
       <div className="employee-table-card">
-        {loading ? (
-          <div className="empty-state">Loading…</div>
-        ) : filtered.length === 0 ? (
+        {filtered.length === 0 ? (
           <div className="empty-state">No requests found.</div>
         ) : (
           <>
@@ -176,9 +177,7 @@ export default function EmployeeRequests() {
                       {isExpanded && (
                         <tr className="employee-detail-row">
                           <td colSpan={6}>
-                            {loadingAssignment === r._id ? (
-                              <div className="detail-loading">Loading assignment…</div>
-                            ) : assignment ? (
+                            {assignment === undefined ? null : assignment ? (
                               <div className="assignment-panels">
                                 <div className="assignment-panel">
                                   <div className="panel-icon driver-icon" aria-hidden>👤</div>

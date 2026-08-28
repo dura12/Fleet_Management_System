@@ -26,6 +26,8 @@ async function request(path, { method = 'GET', body, auth = true } = {}) {
 
 export const api = {
   login: (email, password) => request('/auth/login', { method: 'POST', body: { email, password }, auth: false }),
+  changePassword: ({ currentPassword, newPassword }) =>
+    request('/auth/change-password', { method: 'POST', body: { currentPassword, newPassword } }),
 
   getVehicles: (params = {}) => request(`/vehicles?${new URLSearchParams(params)}`),
   createVehicle: (dto) => request('/vehicles', { method: 'POST', body: dto }),

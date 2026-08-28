@@ -3,6 +3,8 @@ import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import StatusBadge from '../components/StatusBadge';
 import Modal from '../components/Modal';
+import ConfirmDialog from '../components/ConfirmDialog';
+import { readCache, writeCache } from '../utils/sessionCache';
 
 const STATUSES = ['Available', 'Assigned', 'Under Maintenance', 'Inactive'];
 const emptyForm = { vehicleId: '', plateNumber: '', model: '', vehicleType: '', seatingCapacity: 4, currentMileage: 0, status: 'Available' };
@@ -10,20 +12,24 @@ const emptyForm = { vehicleId: '', plateNumber: '', model: '', vehicleType: '', 
 export default function Vehicles() {
   const { user } = useAuth();
   const canEdit = user.role === 'fleet_coordinator' || user.role === 'admin';
-  const [vehicles, setVehicles] = useState([]);
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
+  const [vehicles, setVehicles] = useState(() => readCache('vehicles::', []));
   const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [error, setError] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState(null);
 
   const load = async () => {
+    const cacheKey = `vehicles:${search}:${status}`;
     try {
       const params = {};
       if (search) params.search = search;
       if (status) params.status = status;
-      setVehicles(await api.getVehicles(params));
+      const data = await api.getVehicles(params);
+      setVehicles(data);
+      writeCache(cacheKey, data);
     } catch (err) {
       setError(err.message);
     }
@@ -81,14 +87,23 @@ export default function Vehicles() {
     }
   };
 
-  const handleDelete = async (id) => {
+  const handleDelete = async (vehicle) => {
     setError('');
     try {
-      await api.deleteVehicle(id);
+      await api.deleteVehicle(vehicle._id);
+      setConfirmDelete(null);
       load();
     } catch (err) {
       setError(err.message);
     }
+  };
+
+  const askDelete = (vehicle) => {
+    setConfirmDelete({
+      title: 'Delete vehicle?',
+      message: `Remove ${vehicle.plateNumber || vehicle.vehicleId} from the fleet register? This cannot be undone.`,
+      vehicle,
+    });
   };
 
   return (
@@ -169,7 +184,7 @@ export default function Vehicles() {
 
       <div className="card table-scroll">
         {vehicles.length === 0 ? (
-          <div className="empty-state">No vehicles found.</div>
+          <div className="empty-state">🚗 No vehicles found.</div>
         ) : (
           <table className="responsive-table">
             <thead>
@@ -190,7 +205,7 @@ export default function Vehicles() {
                   {canEdit && (
                     <td className="actions" data-label="Actions">
                       <button className="btn secondary" type="button" onClick={() => startEdit(v)}>Edit</button>{' '}
-                      <button className="btn danger" type="button" onClick={() => handleDelete(v._id)}>Delete</button>
+                      <button className="btn danger" type="button" onClick={() => askDelete(v)}>Delete</button>
                     </td>
                   )}
                 </tr>
@@ -199,6 +214,17 @@ export default function Vehicles() {
           </table>
         )}
       </div>
+
+      {confirmDelete && (
+        <ConfirmDialog
+          title={confirmDelete.title}
+          message={confirmDelete.message}
+          confirmLabel="Delete"
+          danger
+          onCancel={() => setConfirmDelete(null)}
+          onConfirm={() => handleDelete(confirmDelete.vehicle)}
+        />
+      )}
     </div>
   );
 }
