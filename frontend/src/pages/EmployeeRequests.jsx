@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { api } from '../api/client';
 import EmployeeStatusBadge from '../components/EmployeeStatusBadge';
+import LoadingSkeleton from '../components/LoadingSkeleton';
 import { useRequestUi } from '../context/RequestUiContext';
 import { readCache, writeCache } from '../utils/sessionCache';
 
@@ -20,7 +21,7 @@ function formatTravelDate(dateStr) {
 
 export default function EmployeeRequests() {
   const { openCreate, openDetail, refreshKey } = useRequestUi();
-  const [requests, setRequests] = useState(() => readCache('employee-requests', []));
+  const [requests, setRequests] = useState(() => readCache('employee-requests'));
   const [error, setError] = useState('');
   const [tab, setTab] = useState('all');
   const [search, setSearch] = useState('');
@@ -28,6 +29,8 @@ export default function EmployeeRequests() {
   const [page, setPage] = useState(1);
   const [expandedId, setExpandedId] = useState(null);
   const [assignments, setAssignments] = useState({});
+
+  const loading = requests === null;
 
   useEffect(() => {
     let cancelled = false;
@@ -40,7 +43,10 @@ export default function EmployeeRequests() {
         }
       })
       .catch((err) => {
-        if (!cancelled) setError(err.message);
+        if (!cancelled) {
+          setError(err.message);
+          setRequests((prev) => prev ?? []);
+        }
       });
     return () => { cancelled = true; };
   }, [refreshKey]);
@@ -52,9 +58,10 @@ export default function EmployeeRequests() {
   }, []);
 
   const filtered = useMemo(() => {
+    const list = requests ?? [];
     const activeTab = TABS.find((t) => t.key === tab);
     const q = (search || navSearch).trim().toLowerCase();
-    return requests.filter((r) => {
+    return list.filter((r) => {
       if (activeTab?.statuses && !activeTab.statuses.includes(r.status)) return false;
       if (!q) return true;
       return (
@@ -128,7 +135,9 @@ export default function EmployeeRequests() {
       </div>
 
       <div className="employee-table-card">
-        {filtered.length === 0 ? (
+        {loading ? (
+          <LoadingSkeleton variant="employee-table" />
+        ) : filtered.length === 0 ? (
           <div className="empty-state">No requests found.</div>
         ) : (
           <>
@@ -177,7 +186,9 @@ export default function EmployeeRequests() {
                       {isExpanded && (
                         <tr className="employee-detail-row">
                           <td colSpan={6}>
-                            {assignment === undefined ? null : assignment ? (
+                            {assignment === undefined ? (
+                              <LoadingSkeleton variant="assignment-panels" />
+                            ) : assignment ? (
                               <div className="assignment-panels">
                                 <div className="assignment-panel">
                                   <div className="panel-icon driver-icon" aria-hidden>👤</div>

@@ -51,7 +51,6 @@ function EmployeeNavbar({ user, roleLabel, onLogout, onChangePassword }) {
         </div>
         <div className="navbar-right">
           <NotificationBell />
-          <button type="button" className="icon-btn" title="History" aria-label="History">🕐</button>
           <a href="#" className="help-link" onClick={(e) => e.preventDefault()}>Help</a>
           <ProfileMenu
             user={user}
