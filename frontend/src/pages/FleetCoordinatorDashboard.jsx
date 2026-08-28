@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import { useRequestUi } from '../context/RequestUiContext';
 import DashboardFilters, { FilterSelect, filterDrivers, filterRequests, filterVehicles } from '../components/DashboardFilters';
+import LoadingSkeleton from '../components/LoadingSkeleton';
 import { readCache, writeCache } from '../utils/sessionCache';
 
 function formatQueueDate(dateStr) {
@@ -75,11 +76,12 @@ function DriverListItem({ driver }) {
 export default function FleetCoordinatorDashboard() {
   const { openDetail, refreshKey } = useRequestUi();
   const cached = readCache('fleet-dashboard');
-  const [requests, setRequests] = useState(cached?.requests ?? []);
-  const [vehicles, setVehicles] = useState(cached?.vehicles ?? []);
-  const [drivers, setDrivers] = useState(cached?.drivers ?? []);
+  const [requests, setRequests] = useState(cached?.requests ?? null);
+  const [vehicles, setVehicles] = useState(cached?.vehicles ?? null);
+  const [drivers, setDrivers] = useState(cached?.drivers ?? null);
   const [assignments, setAssignments] = useState(cached?.assignments ?? {});
   const [stats, setStats] = useState(cached?.stats ?? null);
+  const loading = requests === null;
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [queueFilter, setQueueFilter] = useState('');
@@ -122,13 +124,16 @@ export default function FleetCoordinatorDashboard() {
       });
     } catch (err) {
       setError(err.message);
+      setRequests((prev) => prev ?? []);
+      setVehicles((prev) => prev ?? []);
+      setDrivers((prev) => prev ?? []);
     }
   }, []);
 
   useEffect(() => { load(); }, [load, refreshKey]);
 
   const pendingAssignment = useMemo(
-    () => requests
+    () => (requests ?? [])
       .filter((r) => r.status === 'Approved')
       .sort((a, b) => {
         if (a.isOverdue && !b.isOverdue) return -1;
@@ -141,7 +146,7 @@ export default function FleetCoordinatorDashboard() {
   );
 
   const activeTrips = useMemo(
-    () => requests.filter((r) => r.status === 'Vehicle Assigned'),
+    () => (requests ?? []).filter((r) => r.status === 'Vehicle Assigned'),
     [requests],
   );
 
@@ -155,7 +160,7 @@ export default function FleetCoordinatorDashboard() {
   }, [activeTrips, assignments]);
 
   const readyDrivers = useMemo(
-    () => drivers.filter(
+    () => (drivers ?? []).filter(
       (d) =>
         d.isActive &&
         new Date(d.licenseExpiry) >= new Date() &&
@@ -165,7 +170,7 @@ export default function FleetCoordinatorDashboard() {
   );
 
   const sortedVehicles = useMemo(
-    () => [...vehicles].sort((a, b) => {
+    () => [...(vehicles ?? [])].sort((a, b) => {
       const rank = (s) => (s === 'Available' ? 0 : s === 'Assigned' ? 1 : 2);
       return rank(a.status) - rank(b.status) || a.vehicleId.localeCompare(b.vehicleId);
     }),
@@ -243,6 +248,17 @@ export default function FleetCoordinatorDashboard() {
       </DashboardFilters>
 
       <div className="coordinator-summary-mobile">
+        {loading ? (
+          <>
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="coordinator-stat coordinator-stat-skeleton">
+                <span className="skel-bar skel-bar-stat-value" />
+                <span className="skel-bar skel-bar-stat-label" />
+              </div>
+            ))}
+          </>
+        ) : (
+          <>
         <div className="coordinator-stat">
           <span className="coordinator-stat-value">{pendingAssignment.length}</span>
           <span className="coordinator-stat-label">Pending</span>
@@ -259,8 +275,13 @@ export default function FleetCoordinatorDashboard() {
           <span className="coordinator-stat-value">{sortedVehicles.filter((v) => v.status === 'Available').length}</span>
           <span className="coordinator-stat-label">Available Vehicles</span>
         </div>
+          </>
+        )}
       </div>
 
+      {loading ? (
+        <LoadingSkeleton variant="coordinator-grid" />
+      ) : (
       <div className="coordinator-grid">
         <section className="coordinator-panel">
           <div className="panel-header">
@@ -351,6 +372,7 @@ export default function FleetCoordinatorDashboard() {
           </div>
         </section>
       </div>
+      )}
     </div>
   );
 }

@@ -939,6 +939,104 @@ tr.row-overdue { background: #fff7ed; }
 .assignment-panel-skeleton .skel-bar-title { width: 68%; height: 14px; }
 .assignment-panel-skeleton .skel-bar-meta { width: 55%; height: 10px; }
 
+.coordinator-grid-skeleton,
+.manager-approval-skeleton,
+.admin-overview-skeleton {
+  padding: 0;
+  text-align: left;
+}
+.coordinator-panel-skeleton .panel-header {
+  min-height: 52px;
+}
+.skel-bar-panel-title { width: 42%; height: 14px; display: block; }
+.panel-skeleton-queue {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.25rem 0;
+}
+.panel-skeleton-queue-card {
+  border: 1px solid #eef2f6;
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+.skel-bar-queue-id { width: 28%; height: 10px; }
+.skel-bar-queue-title { width: 62%; height: 14px; }
+.skel-bar-queue-meta { width: 48%; height: 10px; }
+.panel-skeleton-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  padding: 0.25rem 0;
+}
+.panel-skeleton-list-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.55rem 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+.panel-skeleton-list-item:last-child { border-bottom: none; }
+.skel-bar-list-title { width: 42%; height: 12px; }
+.skel-bar-list-meta { width: 24%; height: 12px; }
+
+.data-table-skeleton { padding: 0.5rem 0; }
+.data-table-skeleton th { padding: 0.75rem 1rem; }
+.data-table-skeleton td { padding: 0.85rem 1rem; }
+.data-table-skeleton-compact th,
+.data-table-skeleton-compact td { padding: 0.65rem 0.85rem; }
+.skel-bar-th { width: 70%; height: 10px; display: block; }
+.skel-bar-td { width: 82%; height: 12px; display: block; }
+
+.metric-card-skeleton {
+  display: flex;
+  gap: 0.85rem;
+  align-items: flex-start;
+}
+.skel-bar-metric-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+.metric-card-skeleton-copy {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+.skel-bar-metric-label { width: 55%; height: 10px; }
+.skel-bar-metric-value { width: 38%; height: 18px; }
+
+.admin-stat-card-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.skel-bar-stat-value { width: 42%; height: 22px; }
+.skel-bar-stat-label { width: 68%; height: 10px; }
+.admin-role-skeleton { display: flex; flex-direction: column; gap: 0.75rem; }
+.skel-bar-role-title { width: 34%; height: 14px; }
+.admin-role-skeleton-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+.skel-bar-role-label { width: 52%; height: 12px; }
+.skel-bar-role-count { width: 10%; height: 12px; }
+
+.coordinator-stat-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  align-items: center;
+}
+
 @keyframes skeleton-shimmer {
   0% { background-position: 100% 0; }
   100% { background-position: -100% 0; }

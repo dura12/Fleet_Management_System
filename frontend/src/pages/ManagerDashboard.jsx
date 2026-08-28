@@ -10,6 +10,7 @@ import { useRequestUi } from '../context/RequestUiContext';
 
 import ConfirmDialog from '../components/ConfirmDialog';
 import DashboardFilters, { FilterSelect, filterDrivers, filterVehicles } from '../components/DashboardFilters';
+import LoadingSkeleton from '../components/LoadingSkeleton';
 import { readCache, writeCache } from '../utils/sessionCache';
 
 import {
@@ -78,7 +79,7 @@ function formatMileage(total) {
 
 
 
-function ApprovalQueue({ requests, stats, vehicles, onRefresh }) {
+function ApprovalQueue({ requests, stats, vehicles, onRefresh, loading }) {
 
   const { openDetail } = useRequestUi();
 
@@ -243,6 +244,11 @@ function ApprovalQueue({ requests, stats, vehicles, onRefresh }) {
   return (
 
     <div className="manager-approval-view">
+
+      {loading ? (
+        <LoadingSkeleton variant="manager-approval" />
+      ) : (
+        <>
 
       <div className="manager-metrics">
 
@@ -520,6 +526,9 @@ function ApprovalQueue({ requests, stats, vehicles, onRefresh }) {
         />
       )}
 
+        </>
+      )}
+
     </div>
 
   );
@@ -528,14 +537,14 @@ function ApprovalQueue({ requests, stats, vehicles, onRefresh }) {
 
 
 
-function ReadOnlyFleet({ vehicles }) {
+function ReadOnlyFleet({ vehicles, loading }) {
 
   const [search, setSearch] = useState('');
 
   const [statusFilter, setStatusFilter] = useState('');
 
   const filtered = useMemo(
-    () => filterVehicles(vehicles, { search, status: statusFilter }),
+    () => filterVehicles(vehicles ?? [], { search, status: statusFilter }),
     [vehicles, search, statusFilter],
   );
 
@@ -564,7 +573,9 @@ function ReadOnlyFleet({ vehicles }) {
 
     <div className="manager-table-card table-scroll">
 
-      {filtered.length === 0 ? (
+      {loading ? (
+        <LoadingSkeleton variant="data-table" columns={7} rows={5} />
+      ) : filtered.length === 0 ? (
 
         <div className="empty-state">No vehicles match your filters.</div>
 
@@ -622,14 +633,14 @@ function ReadOnlyFleet({ vehicles }) {
 
 
 
-function ReadOnlyDrivers({ drivers }) {
+function ReadOnlyDrivers({ drivers, loading }) {
 
   const [search, setSearch] = useState('');
 
   const [statusFilter, setStatusFilter] = useState('');
 
   const filtered = useMemo(
-    () => filterDrivers(drivers, { search, status: statusFilter }),
+    () => filterDrivers(drivers ?? [], { search, status: statusFilter }),
     [drivers, search, statusFilter],
   );
 
@@ -657,7 +668,9 @@ function ReadOnlyDrivers({ drivers }) {
 
     <div className="manager-table-card table-scroll">
 
-      {filtered.length === 0 ? (
+      {loading ? (
+        <LoadingSkeleton variant="data-table" columns={5} rows={5} />
+      ) : filtered.length === 0 ? (
 
         <div className="empty-state">No drivers match your filters.</div>
 
@@ -723,13 +736,15 @@ export default function ManagerDashboard() {
 
   const [tab, setTab] = useState('approval');
 
-  const [requests, setRequests] = useState(cached?.requests ?? []);
+  const [requests, setRequests] = useState(cached?.requests ?? null);
 
   const [stats, setStats] = useState(cached?.stats ?? null);
 
-  const [vehicles, setVehicles] = useState(cached?.vehicles ?? []);
+  const [vehicles, setVehicles] = useState(cached?.vehicles ?? null);
 
-  const [drivers, setDrivers] = useState(cached?.drivers ?? []);
+  const [drivers, setDrivers] = useState(cached?.drivers ?? null);
+
+  const loading = requests === null;
 
   const [exporting, setExporting] = useState(false);
 
@@ -773,6 +788,12 @@ export default function ManagerDashboard() {
     } catch (err) {
 
       setError(err.message);
+
+      setRequests((prev) => prev ?? []);
+
+      setVehicles((prev) => prev ?? []);
+
+      setDrivers((prev) => prev ?? []);
 
     }
 
@@ -932,19 +953,19 @@ export default function ManagerDashboard() {
 
         <div hidden={tab !== 'approval'}>
 
-          <ApprovalQueue requests={requests} stats={stats} vehicles={vehicles} onRefresh={load} />
+          <ApprovalQueue requests={requests ?? []} stats={stats} vehicles={vehicles ?? []} onRefresh={load} loading={loading} />
 
         </div>
 
         <div hidden={tab !== 'fleet'}>
 
-          <ReadOnlyFleet vehicles={vehicles} />
+          <ReadOnlyFleet vehicles={vehicles ?? []} loading={loading} />
 
         </div>
 
         <div hidden={tab !== 'drivers'}>
 
-          <ReadOnlyDrivers drivers={drivers} />
+          <ReadOnlyDrivers drivers={drivers ?? []} loading={loading} />
 
         </div>
 

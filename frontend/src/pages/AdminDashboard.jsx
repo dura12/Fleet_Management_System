@@ -6,6 +6,7 @@ import Modal from '../components/Modal';
 import { useRequestUi } from '../context/RequestUiContext';
 import ConfirmDialog from '../components/ConfirmDialog';
 import DashboardFilters, { FilterSelect, filterUsers } from '../components/DashboardFilters';
+import LoadingSkeleton from '../components/LoadingSkeleton';
 import { readCache, writeCache } from '../utils/sessionCache';
 
 const ROLE_OPTIONS = [
@@ -187,7 +188,7 @@ function UserFormModal({ user, onClose, onSaved }) {
   );
 }
 
-function UserManagement({ users, onRefresh }) {
+function UserManagement({ users, onRefresh, loading }) {
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
   const [activeFilter, setActiveFilter] = useState('');
@@ -236,6 +237,9 @@ function UserManagement({ users, onRefresh }) {
         />
       </DashboardFilters>
       <div className="table-wrap">
+        {loading ? (
+          <LoadingSkeleton variant="data-table" columns={7} rows={6} />
+        ) : (
         <table className="data-table responsive-table admin-users-table">
           <thead>
             <tr>
@@ -270,7 +274,8 @@ function UserManagement({ users, onRefresh }) {
             ))}
           </tbody>
         </table>
-        {filtered.length === 0 && <p className="empty-state">No users match your search.</p>}
+        )}
+        {!loading && filtered.length === 0 && <p className="empty-state">No users match your search.</p>}
       </div>
       {(showCreate || modalUser) && (
         <UserFormModal
@@ -286,7 +291,7 @@ function UserManagement({ users, onRefresh }) {
   );
 }
 
-function RequestOversight({ requests, onRefresh }) {
+function RequestOversight({ requests, onRefresh, loading }) {
   const { openDetail } = useRequestUi();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -370,6 +375,9 @@ function RequestOversight({ requests, onRefresh }) {
         />
       </DashboardFilters>
       <div className="table-wrap">
+        {loading ? (
+          <LoadingSkeleton variant="data-table" columns={6} rows={6} />
+        ) : (
         <table className="data-table responsive-table admin-requests-table">
           <thead>
             <tr>
@@ -411,7 +419,8 @@ function RequestOversight({ requests, onRefresh }) {
             ))}
           </tbody>
         </table>
-        {filtered.length === 0 && <p className="empty-state">No requests found.</p>}
+        )}
+        {!loading && filtered.length === 0 && <p className="empty-state">No requests found.</p>}
       </div>
 
       {confirmOverride && (
@@ -433,13 +442,14 @@ export default function AdminDashboard() {
   const { refreshKey } = useRequestUi();
   const cached = readCache('admin-dashboard');
   const [tab, setTab] = useState('overview');
-  const [users, setUsers] = useState(cached?.users ?? []);
-  const [requests, setRequests] = useState(cached?.requests ?? []);
-  const [vehicles, setVehicles] = useState(cached?.vehicles ?? []);
-  const [drivers, setDrivers] = useState(cached?.drivers ?? []);
+  const [users, setUsers] = useState(cached?.users ?? null);
+  const [requests, setRequests] = useState(cached?.requests ?? null);
+  const [vehicles, setVehicles] = useState(cached?.vehicles ?? null);
+  const [drivers, setDrivers] = useState(cached?.drivers ?? null);
   const [userStats, setUserStats] = useState(cached?.userStats ?? null);
   const [requestStats, setRequestStats] = useState(cached?.requestStats ?? null);
   const [error, setError] = useState('');
+  const loading = users === null;
 
   const load = useCallback(async () => {
     setError('');
@@ -468,6 +478,10 @@ export default function AdminDashboard() {
       });
     } catch (err) {
       setError(err.message);
+      setUsers((prev) => prev ?? []);
+      setRequests((prev) => prev ?? []);
+      setVehicles((prev) => prev ?? []);
+      setDrivers((prev) => prev ?? []);
     }
   }, []);
 
@@ -496,11 +510,14 @@ export default function AdminDashboard() {
       </div>
 
       {tab === 'overview' && (
+        loading ? (
+          <LoadingSkeleton variant="admin-overview" />
+        ) : (
         <div className="admin-overview">
           <div className="admin-stat-grid">
             <StatCard label="Total Users" value={userStats?.totalUsers} hint={`${userStats?.activeUsers ?? 0} active`} />
-            <StatCard label="Vehicles" value={vehicles.length} />
-            <StatCard label="Drivers" value={drivers.length} />
+            <StatCard label="Vehicles" value={(vehicles ?? []).length} />
+            <StatCard label="Drivers" value={(drivers ?? []).length} />
             <StatCard label="Pending Approval" value={requestStats?.submittedCount} hint={`${requestStats?.overdueSubmitted ?? 0} overdue`} />
             <StatCard label="Awaiting Assignment" value={requestStats?.awaitingAssignment} />
             <StatCard label="Active Trips" value={requestStats?.activeTrips} />
@@ -519,10 +536,11 @@ export default function AdminDashboard() {
             </ul>
           </div>
         </div>
+        )
       )}
 
-      {tab === 'users' && <UserManagement users={users} onRefresh={load} />}
-      {tab === 'requests' && <RequestOversight requests={requests} onRefresh={load} />}
+      {tab === 'users' && <UserManagement users={users ?? []} onRefresh={load} loading={loading} />}
+      {tab === 'requests' && <RequestOversight requests={requests ?? []} onRefresh={load} loading={loading} />}
       <div className="admin-reports-embed" hidden={tab !== 'reports'}>
         <Reports embedded />
       </div>
