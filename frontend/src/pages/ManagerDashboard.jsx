@@ -83,6 +83,10 @@ function ApprovalQueue({ requests, stats, vehicles, onRefresh, loading }) {
 
   const { openDetail } = useRequestUi();
 
+  const safeRequests = requests ?? [];
+
+  const safeVehicles = vehicles ?? [];
+
   const [search, setSearch] = useState('');
 
   const [queueFilter, setQueueFilter] = useState('');
@@ -99,9 +103,9 @@ function ApprovalQueue({ requests, stats, vehicles, onRefresh, loading }) {
 
   const submitted = useMemo(
 
-    () => requests.filter((r) => r.status === 'Submitted'),
+    () => safeRequests.filter((r) => r.status === 'Submitted'),
 
-    [requests],
+    [safeRequests],
 
   );
 
@@ -177,9 +181,9 @@ function ApprovalQueue({ requests, stats, vehicles, onRefresh, loading }) {
 
 
 
-  const activeVehicles = vehicles.filter((v) => v.status === 'Assigned' || v.status === 'Available').length;
+  const activeVehicles = safeVehicles.filter((v) => v.status === 'Assigned' || v.status === 'Available').length;
 
-  const totalMileage = vehicles.reduce((sum, v) => sum + (v.currentMileage || 0), 0);
+  const totalMileage = safeVehicles.reduce((sum, v) => sum + (v.currentMileage || 0), 0);
 
 
 
@@ -280,7 +284,7 @@ function ApprovalQueue({ requests, stats, vehicles, onRefresh, loading }) {
 
             <div className="metric-label">Active Vehicles</div>
 
-            <div className="metric-value">{activeVehicles} <span className="metric-sub">/ {vehicles.length} total fleet</span></div>
+            <div className="metric-value">{activeVehicles} <span className="metric-sub">/ {safeVehicles.length} total fleet</span></div>
 
           </div>
 
@@ -875,7 +879,7 @@ export default function ManagerDashboard() {
 
   const criticalCount = (stats?.overdueSubmitted ?? 0) +
 
-    requests.filter((r) => r.status === 'Submitted' && r.priority === 'Urgent').length;
+    (requests ?? []).filter((r) => r.status === 'Submitted' && r.priority === 'Urgent').length;
 
 
 

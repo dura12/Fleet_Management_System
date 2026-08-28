@@ -196,7 +196,7 @@ function UserManagement({ users, onRefresh, loading }) {
   const [showCreate, setShowCreate] = useState(false);
 
   const filtered = useMemo(
-    () => filterUsers(users, { search, role: roleFilter, active: activeFilter }),
+    () => filterUsers(users ?? [], { search, role: roleFilter, active: activeFilter }),
     [users, search, roleFilter, activeFilter],
   );
 
@@ -301,7 +301,7 @@ function RequestOversight({ requests, onRefresh, loading }) {
   const [confirmOverride, setConfirmOverride] = useState(null);
 
   const filtered = useMemo(() => {
-    let rows = requests;
+    let rows = requests ?? [];
     if (statusFilter) rows = rows.filter((r) => r.status === statusFilter);
     if (priorityFilter === 'urgent') rows = rows.filter((r) => r.priority === 'Urgent');
     if (priorityFilter === 'overdue') rows = rows.filter((r) => r.isOverdue);

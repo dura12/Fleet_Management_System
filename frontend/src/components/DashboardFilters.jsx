@@ -45,7 +45,7 @@ function matchRequestSearch(r, q) {
 
 export function filterRequests(requests, { search = '', priority = '', status = '' } = {}) {
   const q = search.trim().toLowerCase();
-  return requests.filter((r) => {
+  return (requests ?? []).filter((r) => {
     if (status && r.status !== status) return false;
     if (priority === 'urgent' && r.priority !== 'Urgent') return false;
     if (priority === 'overdue' && !r.isOverdue) return false;
@@ -56,7 +56,7 @@ export function filterRequests(requests, { search = '', priority = '', status = 
 
 export function filterVehicles(vehicles, { search = '', status = '' } = {}) {
   const q = search.trim().toLowerCase();
-  return vehicles.filter((v) => {
+  return (vehicles ?? []).filter((v) => {
     if (status && v.status !== status) return false;
     if (!q) return true;
     return (
@@ -71,7 +71,7 @@ export function filterVehicles(vehicles, { search = '', status = '' } = {}) {
 export function filterDrivers(drivers, { search = '', status = '' } = {}) {
   const q = search.trim().toLowerCase();
   const now = new Date();
-  return drivers.filter((d) => {
+  return (drivers ?? []).filter((d) => {
     const expired = new Date(d.licenseExpiry) < now;
     const driverStatus = !d.isActive ? 'inactive' : expired ? 'expired' : 'active';
     if (status === 'active' && driverStatus !== 'active') return false;
@@ -89,7 +89,7 @@ export function filterDrivers(drivers, { search = '', status = '' } = {}) {
 
 export function filterUsers(users, { search = '', role = '', active = '' } = {}) {
   const q = search.trim().toLowerCase();
-  return users.filter((u) => {
+  return (users ?? []).filter((u) => {
     if (role && u.role !== role) return false;
     if (active === 'active' && u.isActive === false) return false;
     if (active === 'inactive' && u.isActive !== false) return false;
