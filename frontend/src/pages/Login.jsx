@@ -33,9 +33,10 @@ export default function Login() {
       <div className="login-main">
         <div className="card login-card">
           <div className="login-brand">
-            <BrandLogo to={null} subtitle="Fleet Management" />
+            <BrandLogo to={null} subtitle="Fleet Management" fleetIconSize={30} />
           </div>
           <p className="subtitle login-tagline">OTech Engineering &amp; Technology Solutions</p>
+          <p className="login-description">Manage requests, vehicles, and drivers in one place.</p>
           {error && <div className="error-banner">{error}</div>}
           <form onSubmit={handleSubmit}>
             <label>Email</label>

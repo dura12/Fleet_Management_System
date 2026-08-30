@@ -29,6 +29,17 @@ export function downloadCsv(filename, sections) {
   URL.revokeObjectURL(url);
 }
 
+function formatDateTime(dateStr) {
+  if (!dateStr) return '';
+  return new Date(dateStr).toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
 function formatDate(dateStr) {
   if (!dateStr) return '';
   return new Date(dateStr).toLocaleDateString('en-US', {
@@ -44,9 +55,12 @@ export function buildManagerExportSections(requests, vehicles, drivers, assignme
     r.status,
     r.requester?.fullName || '',
     r.requester?.department || '',
+    r.branch || '',
     r.destination,
     r.purpose,
-    formatDate(r.travelDate),
+    formatDateTime(r.travelDate),
+    formatDateTime(r.returnDate || r.travelDate),
+    r.tripDuration || '',
     r.numberOfPassengers ?? '',
     r.priority || 'Normal',
     r.isOverdue ? 'Yes' : 'No',
@@ -93,8 +107,8 @@ export function buildManagerExportSections(requests, vehicles, drivers, assignme
     {
       title: 'ALL REQUESTS',
       headers: [
-        'Request ID', 'Status', 'Requester', 'Department', 'Destination', 'Purpose',
-        'Travel Date', 'Passengers', 'Priority', 'Overdue', 'Rejection Reason', 'Submitted',
+        'Request ID', 'Status', 'Requester', 'Department', 'Branch', 'Destination', 'Purpose',
+        'Travel Date', 'Expected Return', 'Trip Duration', 'Passengers', 'Priority', 'Overdue', 'Rejection Reason', 'Submitted',
       ],
       rows: requestRows,
     },
@@ -137,7 +151,7 @@ export function buildVehicleRegisterExport(data) {
 
 export function buildRequestsByStatusExport(data) {
   if (!data || typeof data !== 'object') {
-    return [{ title: 'REQUESTS BY STATUS', headers: ['Request ID', 'Status', 'Requester', 'Destination', 'Travel Date', 'Priority'], rows: [] }];
+    return [{ title: 'REQUESTS BY STATUS', headers: ['Request ID', 'Status', 'Requester', 'Branch', 'Destination', 'Trip Duration', 'Travel Date', 'Expected Return', 'Priority'], rows: [] }];
   }
   const rows = [];
   for (const [status, items] of Object.entries(data)) {
@@ -147,15 +161,18 @@ export function buildRequestsByStatusExport(data) {
         r.requestNumber,
         status,
         r.requester?.fullName || '',
+        r.branch || '',
         r.destination,
-        formatDate(r.travelDate),
+        r.tripDuration || '',
+        formatDateTime(r.travelDate),
+        formatDateTime(r.returnDate || r.travelDate),
         r.priority || 'Normal',
       ]);
     }
   }
   return [{
     title: 'REQUESTS BY STATUS',
-    headers: ['Request ID', 'Status', 'Requester', 'Destination', 'Travel Date', 'Priority'],
+    headers: ['Request ID', 'Status', 'Requester', 'Branch', 'Destination', 'Trip Duration', 'Travel Date', 'Expected Return', 'Priority'],
     rows,
   }];
 }

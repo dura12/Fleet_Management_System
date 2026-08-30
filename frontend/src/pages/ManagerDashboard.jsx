@@ -12,6 +12,7 @@ import ConfirmDialog from '../components/ConfirmDialog';
 import DashboardFilters, { FilterSelect, filterDrivers, filterVehicles } from '../components/DashboardFilters';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 import { readCache, writeCache } from '../utils/sessionCache';
+import { formatDateRange } from '../utils/requestForm';
 
 import {
 
@@ -334,7 +335,7 @@ function ApprovalQueue({ requests, stats, vehicles, onRefresh, loading }) {
 
             <p className="urgent-meta">
 
-              {urgent.requester?.fullName} ({urgent.requester?.department}) · {urgent.destination} · {formatTravelDateTime(urgent.travelDate)}
+              {urgent.requester?.fullName} ({urgent.requester?.department}) · {urgent.branch || '—'} · {urgent.destination} · {formatDateRange(urgent.travelDate, urgent.returnDate)}
 
             </p>
 
@@ -464,7 +465,7 @@ function ApprovalQueue({ requests, stats, vehicles, onRefresh, loading }) {
 
                   <td data-label="Destination">{r.destination}</td>
 
-                  <td data-label="Travel Date">{formatDate(r.travelDate)}</td>
+                  <td data-label="Travel Date">{formatDateRange(r.travelDate, r.returnDate)}</td>
 
                   <td data-label="Purpose">{r.purpose}</td>
 

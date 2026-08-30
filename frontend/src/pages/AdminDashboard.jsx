@@ -8,6 +8,7 @@ import ConfirmDialog from '../components/ConfirmDialog';
 import DashboardFilters, { FilterSelect, filterUsers } from '../components/DashboardFilters';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 import { readCache, writeCache } from '../utils/sessionCache';
+import { formatDateRange } from '../utils/requestForm';
 
 const ROLE_OPTIONS = [
   { value: 'employee', label: 'Employee / Requester' },
@@ -31,6 +32,7 @@ const REQUEST_STATUSES = [
 const DASH_TABS = [
   { key: 'overview', label: 'Overview', shortLabel: 'Overview' },
   { key: 'users', label: 'User Management', shortLabel: 'Users' },
+  { key: 'settings', label: 'Settings', shortLabel: 'Settings' },
   { key: 'requests', label: 'All Requests', shortLabel: 'Requests' },
   { key: 'reports', label: 'Reports', shortLabel: 'Reports' },
 ];
@@ -63,7 +65,7 @@ function StatCard({ label, value, hint }) {
   );
 }
 
-function UserFormModal({ user, onClose, onSaved }) {
+function UserFormModal({ user, branches, departments, onClose, onSaved }) {
   const isEdit = Boolean(user?._id);
   const [form, setForm] = useState(
     user
@@ -73,10 +75,11 @@ function UserFormModal({ user, onClose, onSaved }) {
           email: user.email || '',
           password: '',
           department: user.department || '',
+          defaultBranch: user.defaultBranch?._id || user.defaultBranch || '',
           role: user.role || 'employee',
           isActive: user.isActive !== false,
         }
-      : { ...EMPTY_USER, isActive: true },
+      : { ...EMPTY_USER, defaultBranch: '', isActive: true },
   );
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -92,6 +95,7 @@ function UserFormModal({ user, onClose, onSaved }) {
           fullName: form.fullName,
           email: form.email,
           department: form.department,
+          defaultBranch: form.defaultBranch || null,
           role: form.role,
           isActive: form.isActive,
         };
@@ -109,6 +113,7 @@ function UserFormModal({ user, onClose, onSaved }) {
           email: form.email,
           password: form.password,
           department: form.department,
+          defaultBranch: form.defaultBranch || undefined,
           role: form.role,
         });
       }
@@ -121,14 +126,25 @@ function UserFormModal({ user, onClose, onSaved }) {
     }
   };
 
+  const activeDepartments = (departments || []).filter((d) => d.isActive !== false);
+  const departmentOptions = useMemo(() => {
+    const names = activeDepartments.map((d) => d.name);
+    if (form.department && !names.includes(form.department)) {
+      return [form.department, ...names];
+    }
+    return names;
+  }, [activeDepartments, form.department]);
+
   return (
     <Modal title={isEdit ? 'Edit User' : 'Create User'} size="md" onClose={onClose}>
       {error && <div className="error-banner">{error}</div>}
       <form onSubmit={handleSubmit} className="admin-user-modal">
         <label>Employee ID</label>
+        <p className="field-hint">Official company ID from HR</p>
         <input
           value={form.employeeId}
           onChange={(e) => setForm({ ...form, employeeId: e.target.value })}
+          placeholder="e.g. EMP-1042"
           required
         />
         <label>Full Name</label>
@@ -153,11 +169,26 @@ function UserFormModal({ user, onClose, onSaved }) {
           minLength={6}
         />
         <label>Department</label>
-        <input
+        <select
           value={form.department}
           onChange={(e) => setForm({ ...form, department: e.target.value })}
           required
-        />
+        >
+          <option value="">Select department…</option>
+          {departmentOptions.map((name) => (
+            <option key={name} value={name}>{name}</option>
+          ))}
+        </select>
+        <label>Default Start Location</label>
+        <select
+          value={form.defaultBranch}
+          onChange={(e) => setForm({ ...form, defaultBranch: e.target.value })}
+        >
+          <option value="">None</option>
+          {(branches || []).filter((b) => b.isActive !== false).map((b) => (
+            <option key={b._id} value={b._id}>{b.name}</option>
+          ))}
+        </select>
         <label>Role</label>
         <select
           value={form.role}
@@ -188,7 +219,7 @@ function UserFormModal({ user, onClose, onSaved }) {
   );
 }
 
-function UserManagement({ users, onRefresh, loading }) {
+function UserManagement({ users, branches, departments, onRefresh, loading }) {
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
   const [activeFilter, setActiveFilter] = useState('');
@@ -280,6 +311,8 @@ function UserManagement({ users, onRefresh, loading }) {
       {(showCreate || modalUser) && (
         <UserFormModal
           user={modalUser}
+          branches={branches}
+          departments={departments}
           onClose={() => {
             setShowCreate(false);
             setModalUser(null);
@@ -383,8 +416,9 @@ function RequestOversight({ requests, onRefresh, loading }) {
             <tr>
               <th>Request</th>
               <th>Requester</th>
+              <th>Start</th>
               <th>Destination</th>
-              <th>Travel Date</th>
+              <th>Dates</th>
               <th>Status</th>
               <th>Override</th>
             </tr>
@@ -398,8 +432,9 @@ function RequestOversight({ requests, onRefresh, loading }) {
                   </button>
                 </td>
                 <td data-label="Requester">{r.requester?.fullName || '—'}</td>
+                <td data-label="Branch">{r.branch || '—'}</td>
                 <td data-label="Destination">{r.destination}</td>
-                <td data-label="Travel Date">{formatDate(r.travelDate)}</td>
+                <td data-label="Dates">{formatDateRange(r.travelDate, r.returnDate)}</td>
                 <td data-label="Status">
                   <span className="status-pill">{r.status}</span>
                 </td>
@@ -438,6 +473,128 @@ function RequestOversight({ requests, onRefresh, loading }) {
   );
 }
 
+function LookupTable({ title, subtitle, items, onAdd, onToggle }) {
+  const [name, setName] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleAdd = async (e) => {
+    e.preventDefault();
+    if (!name.trim()) return;
+    setError('');
+    setBusy(true);
+    try {
+      await onAdd(name.trim());
+      setName('');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="card admin-settings-card">
+      <div className="admin-panel-header">
+        <div>
+          <h2>{title}</h2>
+          <p className="admin-panel-sub">{subtitle}</p>
+        </div>
+      </div>
+      {error && <div className="error-banner">{error}</div>}
+      <form onSubmit={handleAdd} className="admin-settings-add">
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder={`New ${title.toLowerCase().slice(0, -1)} name…`}
+        />
+        <button type="submit" className="btn" disabled={busy || !name.trim()}>Add</button>
+      </form>
+      <div className="table-wrap">
+        <table className="data-table responsive-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(items || []).map((item) => (
+              <tr key={item._id} className={item.isActive === false ? 'inactive-row' : ''}>
+                <td data-label="Name">{item.name}</td>
+                <td data-label="Status">
+                  <span className={`status-pill ${item.isActive !== false ? 'active-pill' : 'inactive-pill'}`}>
+                    {item.isActive !== false ? 'Active' : 'Inactive'}
+                  </span>
+                </td>
+                <td data-label="Actions" className="actions">
+                  <button
+                    type="button"
+                    className="btn secondary btn-sm"
+                    onClick={() => onToggle(item)}
+                  >
+                    {item.isActive !== false ? 'Deactivate' : 'Activate'}
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {(!items || items.length === 0) && <p className="empty-state">No entries yet.</p>}
+      </div>
+    </div>
+  );
+}
+
+function SettingsManagement({ branches, destinations, departments, onRefresh, loading }) {
+  if (loading) return <LoadingSkeleton variant="data-table" columns={3} rows={4} />;
+
+  return (
+    <div className="admin-settings-grid">
+      <LookupTable
+        title="Departments"
+        subtitle="Departments employees can be assigned to when creating user accounts."
+        items={departments}
+        onAdd={async (name) => {
+          await api.createDepartment({ name });
+          onRefresh();
+        }}
+        onToggle={async (item) => {
+          await api.updateDepartment(item._id, { isActive: item.isActive === false });
+          onRefresh();
+        }}
+      />
+      <LookupTable
+        title="Start Locations"
+        subtitle="Default starting locations employees can pick from or type their own."
+        items={branches}
+        onAdd={async (name) => {
+          await api.createBranch({ name });
+          onRefresh();
+        }}
+        onToggle={async (item) => {
+          await api.updateBranch(item._id, { isActive: item.isActive === false });
+          onRefresh();
+        }}
+      />
+      <LookupTable
+        title="Destinations"
+        subtitle="Standard destinations shown in employee autocomplete suggestions."
+        items={destinations}
+        onAdd={async (name) => {
+          await api.createDestination({ name });
+          onRefresh();
+        }}
+        onToggle={async (item) => {
+          await api.updateDestination(item._id, { isActive: item.isActive === false });
+          onRefresh();
+        }}
+      />
+    </div>
+  );
+}
+
 export default function AdminDashboard() {
   const { refreshKey } = useRequestUi();
   const cached = readCache('admin-dashboard');
@@ -448,19 +605,25 @@ export default function AdminDashboard() {
   const [drivers, setDrivers] = useState(cached?.drivers ?? null);
   const [userStats, setUserStats] = useState(cached?.userStats ?? null);
   const [requestStats, setRequestStats] = useState(cached?.requestStats ?? null);
+  const [branches, setBranches] = useState(cached?.branches ?? null);
+  const [destinations, setDestinations] = useState(cached?.destinations ?? null);
+  const [departments, setDepartments] = useState(cached?.departments ?? null);
   const [error, setError] = useState('');
   const loading = users === null;
 
   const load = useCallback(async () => {
     setError('');
     try {
-      const [userData, reqData, vehicleData, driverData, uStats, rStats] = await Promise.all([
+      const [userData, reqData, vehicleData, driverData, uStats, rStats, branchData, destData, deptData] = await Promise.all([
         api.getUsers(),
         api.getRequests(),
         api.getVehicles(),
         api.getDrivers(),
         api.getUserStats(),
         api.getRequestStats(),
+        api.getBranches(),
+        api.getDestinations(),
+        api.getDepartments(),
       ]);
       setUsers(userData);
       setRequests(reqData);
@@ -468,6 +631,9 @@ export default function AdminDashboard() {
       setDrivers(driverData);
       setUserStats(uStats);
       setRequestStats(rStats);
+      setBranches(branchData);
+      setDestinations(destData);
+      setDepartments(deptData);
       writeCache('admin-dashboard', {
         users: userData,
         requests: reqData,
@@ -475,6 +641,9 @@ export default function AdminDashboard() {
         drivers: driverData,
         userStats: uStats,
         requestStats: rStats,
+        branches: branchData,
+        destinations: destData,
+        departments: deptData,
       });
     } catch (err) {
       setError(err.message);
@@ -539,7 +708,16 @@ export default function AdminDashboard() {
         )
       )}
 
-      {tab === 'users' && <UserManagement users={users ?? []} onRefresh={load} loading={loading} />}
+      {tab === 'users' && <UserManagement users={users ?? []} branches={branches ?? []} departments={departments ?? []} onRefresh={load} loading={loading} />}
+      {tab === 'settings' && (
+        <SettingsManagement
+          branches={branches ?? []}
+          destinations={destinations ?? []}
+          departments={departments ?? []}
+          onRefresh={load}
+          loading={loading}
+        />
+      )}
       {tab === 'requests' && <RequestOversight requests={requests ?? []} onRefresh={load} loading={loading} />}
       <div className="admin-reports-embed" hidden={tab !== 'reports'}>
         <Reports embedded />

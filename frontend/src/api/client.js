@@ -40,6 +40,7 @@ export const api = {
   deleteDriver: (id) => request(`/drivers/${id}`, { method: 'DELETE' }),
 
   getRequests: (params = {}) => request(`/requests?${new URLSearchParams(params)}`),
+  getRequestFormSuggestions: () => request('/requests/form-suggestions'),
   getRequestStats: () => request('/requests/stats'),
   getRequest: (id) => request(`/requests/${id}`),
   getRequestAssignment: (id) => request(`/requests/${id}/assignment`),
@@ -72,4 +73,16 @@ export const api = {
   vehicleRegister: () => request('/reports/vehicle-register'),
   requestsByStatus: () => request('/reports/requests-by-status'),
   assignmentHistory: () => request('/reports/assignment-history'),
+
+  getBranches: (activeOnly = false) => request(`/branches?activeOnly=${activeOnly}`),
+  createBranch: (dto) => request('/branches', { method: 'POST', body: dto }),
+  updateBranch: (id, dto) => request(`/branches/${id}`, { method: 'PATCH', body: dto }),
+
+  getDestinations: (activeOnly = false) => request(`/destinations?activeOnly=${activeOnly}`),
+  createDestination: (dto) => request('/destinations', { method: 'POST', body: dto }),
+  updateDestination: (id, dto) => request(`/destinations/${id}`, { method: 'PATCH', body: dto }),
+
+  getDepartments: (activeOnly = false) => request(`/departments?activeOnly=${activeOnly}`),
+  createDepartment: (dto) => request('/departments', { method: 'POST', body: dto }),
+  updateDepartment: (id, dto) => request(`/departments/${id}`, { method: 'PATCH', body: dto }),
 };

@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document } from 'mongoose';
+import { Document, Schema as MongooseSchema } from 'mongoose';
 import { Role } from '../common/roles.enum';
 
 export type UserDocument = User & Document;
@@ -20,6 +20,9 @@ export class User {
 
   @Prop({ required: true, trim: true })
   department: string;
+
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Branch' })
+  defaultBranch?: string;
 
   @Prop({ required: true, enum: Role, default: Role.EMPLOYEE })
   role: Role;

@@ -22,6 +22,9 @@ import { DriversService } from '../drivers/drivers.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationType } from '../notifications/notification.schema';
 import { Role } from '../common/roles.enum';
+import { computeExpectedReturn, inferTripDuration } from '../common/trip-duration';
+import { SettingsService } from '../settings/settings.service';
+import { UsersService } from '../users/users.service';
 
 interface AuthUser {
   userId: string;
@@ -36,6 +39,8 @@ export class RequestsService {
     private vehiclesService: VehiclesService,
     private driversService: DriversService,
     private notificationsService: NotificationsService,
+    private settingsService: SettingsService,
+    private usersService: UsersService,
   ) {}
 
   private assertTransition(current: RequestStatus, next: RequestStatus) {
@@ -43,6 +48,22 @@ export class RequestsService {
     if (!allowed.includes(next)) {
       throw new BadRequestException(`Cannot move a request from "${current}" to "${next}".`);
     }
+  }
+
+  private assertCanComplete(request: VehicleRequestDocument) {
+    if (new Date() < new Date(request.travelDate)) {
+      throw new BadRequestException(
+        'This trip cannot be completed before its scheduled departure. Cancel the trip if it will not run.',
+      );
+    }
+  }
+
+  private canCoordinatorCancelAssigned(request: VehicleRequestDocument, role: Role): boolean {
+    return (
+      role === Role.FLEET_COORDINATOR &&
+      request.status === RequestStatus.VEHICLE_ASSIGNED &&
+      new Date() < new Date(request.travelDate)
+    );
   }
 
   private async nextSequence(prefix: string, model: Model<any>): Promise<string> {
@@ -56,6 +77,39 @@ export class RequestsService {
     const end = new Date(date);
     end.setHours(23, 59, 59, 999);
     return { start, end };
+  }
+
+  private validateTravelDates(travelDate: string, returnDate: string) {
+    const start = new Date(travelDate);
+    const end = new Date(returnDate);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      throw new BadRequestException('Travel and return date/time must be valid.');
+    }
+    if (start < new Date()) {
+      throw new BadRequestException('Travel date and time cannot be in the past.');
+    }
+    if (end < start) {
+      throw new BadRequestException('Return date and time cannot be before travel date and time.');
+    }
+  }
+
+  private async resolveStartLocation(branch: string | undefined, userId: string): Promise<string> {
+    const trimmed = branch?.trim();
+    if (trimmed) return trimmed;
+
+    const user = await this.usersService.findById(userId);
+    const defaultBranch = user.defaultBranch as any;
+    const defaultName = defaultBranch?.name || defaultBranch;
+    if (defaultName && typeof defaultName === 'string') return defaultName;
+
+    throw new BadRequestException('Please enter a start location.');
+  }
+
+  private async saveLookupHistory(userId: string, branch: string, destination: string) {
+    await Promise.all([
+      this.settingsService.recordUserBranch(userId, branch),
+      this.settingsService.recordUserDestination(userId, destination),
+    ]);
   }
 
   private isOverdue(request: { status: RequestStatus; submittedAt?: Date }): boolean {
@@ -132,6 +186,55 @@ export class RequestsService {
     await this.vehiclesService.markAvailable(this.refId(assignment.vehicle));
   }
 
+  private ensureLegacyRequestFields(request: VehicleRequestDocument) {
+    const branch = request.branch?.trim();
+    if (!branch || /^[a-f0-9]{24}$/i.test(branch)) {
+      request.branch = 'Head Office';
+    }
+    if (!request.returnDate && request.travelDate) {
+      const duration = request.tripDuration || '4h';
+      request.returnDate = computeExpectedReturn(request.travelDate, duration);
+    }
+    if (!request.tripDuration) {
+      if (request.travelDate && request.returnDate) {
+        request.tripDuration = inferTripDuration(request.travelDate, request.returnDate);
+      } else {
+        request.tripDuration = '4h';
+      }
+    }
+  }
+
+  /** Fix requests left in Approved/Assigned after a partial assign or complete. */
+  private async repairStaleRequestStates() {
+    try {
+      const approved = await this.requestModel.find({ status: RequestStatus.APPROVED });
+      for (const request of approved) {
+        const assignment = await this.assignmentModel.findOne({
+          request: request._id,
+          returnedAt: { $exists: false },
+        });
+        if (!assignment) continue;
+        this.ensureLegacyRequestFields(request);
+        request.status = RequestStatus.VEHICLE_ASSIGNED;
+        await request.save();
+      }
+
+      const assigned = await this.requestModel.find({ status: RequestStatus.VEHICLE_ASSIGNED });
+      for (const request of assigned) {
+        const assignment = await this.assignmentModel.findOne({
+          request: request._id,
+          returnedAt: { $exists: true },
+        });
+        if (!assignment) continue;
+        this.ensureLegacyRequestFields(request);
+        request.status = RequestStatus.COMPLETED;
+        await request.save();
+      }
+    } catch {
+      // Best-effort repair; do not block listing requests.
+    }
+  }
+
   private async getBusyDriverIds(excludeRequestId?: string): Promise<Set<string>> {
     const assignments = await this.assignmentModel
       .find({ returnedAt: { $exists: false } })
@@ -169,39 +272,45 @@ export class RequestsService {
 
   private async assertNoEmployeeDateConflict(
     requesterId: string,
-    travelDate: Date,
+    travelDate: Date | string,
+    returnDate: Date | string,
     excludeRequestId: string,
   ) {
-    const { start, end } = this.dayBounds(travelDate);
+    const start = new Date(travelDate);
+    const end = new Date(returnDate);
     const conflict = await this.requestModel.findOne({
       _id: { $ne: excludeRequestId },
       requester: requesterId,
       status: { $in: [RequestStatus.APPROVED, RequestStatus.VEHICLE_ASSIGNED] },
-      travelDate: { $gte: start, $lte: end },
+      travelDate: { $lte: end },
+      returnDate: { $gte: start },
     });
     if (conflict) {
       throw new BadRequestException(
-        `This employee already has an active trip on that date (request ${conflict.requestNumber}).`,
+        `This employee already has an active trip overlapping those dates (request ${conflict.requestNumber}).`,
       );
     }
   }
 
   private async assertNoVehicleDateConflict(
     vehicleId: string,
-    travelDate: Date,
+    travelDate: Date | string,
+    returnDate: Date | string,
     excludeRequestId: string,
   ) {
-    const { start, end } = this.dayBounds(travelDate);
+    const start = new Date(travelDate);
+    const end = new Date(returnDate);
     const assignments = await this.assignmentModel.find({ vehicle: vehicleId }).populate('request');
     for (const assignment of assignments) {
       if (assignment.returnedAt) continue;
       const req = assignment.request as any;
       if (!req || String(req._id) === excludeRequestId) continue;
       if (req.status !== RequestStatus.VEHICLE_ASSIGNED) continue;
-      const reqDate = new Date(req.travelDate);
-      if (reqDate >= start && reqDate <= end) {
+      const reqStart = new Date(req.travelDate);
+      const reqEnd = new Date(req.returnDate || req.travelDate);
+      if (start <= reqEnd && reqStart <= end) {
         throw new BadRequestException(
-          `This vehicle is already assigned to request ${req.requestNumber} on that date.`,
+          `This vehicle is already assigned to request ${req.requestNumber} during those dates.`,
         );
       }
     }
@@ -241,21 +350,40 @@ export class RequestsService {
   }
 
   async create(dto: CreateRequestDto, user: AuthUser): Promise<VehicleRequestDocument> {
-    if (new Date(dto.travelDate) < new Date(new Date().toDateString())) {
-      throw new BadRequestException('Travel date cannot be in the past.');
-    }
+    const returnDate = computeExpectedReturn(dto.travelDate, dto.tripDuration);
+    this.validateTravelDates(dto.travelDate, returnDate.toISOString());
+    const branch = await this.resolveStartLocation(dto.branch, user.userId);
     const requestNumber = await this.nextSequence('REQ', this.requestModel);
     const created = new this.requestModel({
       requestNumber,
       requester: user.userId,
-      destination: dto.destination,
-      purpose: dto.purpose,
+      branch,
+      destination: dto.destination.trim(),
+      purpose: dto.purpose.trim(),
       travelDate: dto.travelDate,
+      returnDate,
+      tripDuration: dto.tripDuration,
       numberOfPassengers: dto.numberOfPassengers,
       priority: dto.priority || RequestPriority.NORMAL,
       status: RequestStatus.DRAFT,
     });
-    return created.save();
+    const saved = await created.save();
+    await this.saveLookupHistory(user.userId, branch, dto.destination);
+    return saved;
+  }
+
+  async getFormSuggestions(userId: string) {
+    const [startLocations, destinations, user] = await Promise.all([
+      this.settingsService.getBranchNamesForUser(userId),
+      this.settingsService.getDestinationNamesForUser(userId),
+      this.usersService.findById(userId),
+    ]);
+    const purposeRows = await this.requestModel
+      .find({ requester: userId, purpose: { $exists: true, $ne: '' } })
+      .distinct('purpose');
+    const purposes = [...new Set(purposeRows.map((p: string) => p.trim()).filter(Boolean))].sort();
+    const defaultBranch = (user.defaultBranch as any)?.name || '';
+    return { startLocations, destinations, purposes, defaultBranch };
   }
 
   async findAll(user: AuthUser, filter: { status?: string; requester?: string; from?: string; to?: string }) {
@@ -274,6 +402,10 @@ export class RequestsService {
       query.travelDate = {};
       if (filter.from) query.travelDate.$gte = new Date(filter.from);
       if (filter.to) query.travelDate.$lte = new Date(filter.to);
+    }
+
+    if ([Role.FLEET_COORDINATOR, Role.MANAGER, Role.ADMIN].includes(user.role)) {
+      await this.repairStaleRequestStates();
     }
 
     const openCounts = await this.getOpenRequestCounts();
@@ -311,11 +443,32 @@ export class RequestsService {
     if (request.status !== RequestStatus.DRAFT) {
       throw new BadRequestException('Only requests still in Draft status can be edited.');
     }
-    if (dto.travelDate && new Date(dto.travelDate) < new Date(new Date().toDateString())) {
-      throw new BadRequestException('Travel date cannot be in the past.');
+
+    const travelDate = dto.travelDate ?? request.travelDate;
+    const tripDuration = dto.tripDuration ?? request.tripDuration ?? inferTripDuration(travelDate, request.returnDate);
+    const returnDate = computeExpectedReturn(travelDate, tripDuration);
+    this.validateTravelDates(
+      new Date(travelDate).toISOString(),
+      returnDate.toISOString(),
+    );
+
+    if (dto.branch !== undefined) {
+      dto.branch = dto.branch.trim();
+      if (!dto.branch) throw new BadRequestException('Start location cannot be empty.');
     }
+
     Object.assign(request, dto);
-    return request.save();
+    request.returnDate = returnDate;
+    request.tripDuration = tripDuration;
+    const saved = await request.save();
+    if (dto.branch || dto.destination) {
+      await this.saveLookupHistory(
+        user.userId,
+        saved.branch,
+        saved.destination,
+      );
+    }
+    return saved;
   }
 
   async submit(id: string, user: AuthUser): Promise<VehicleRequestDocument> {
@@ -327,6 +480,7 @@ export class RequestsService {
     this.assertTransition(request.status, RequestStatus.SUBMITTED);
     request.status = RequestStatus.SUBMITTED;
     request.submittedAt = new Date();
+    this.ensureLegacyRequestFields(request);
     const saved = await request.save();
 
     const requesterName = (request.requester as any)?.fullName || 'An employee';
@@ -381,7 +535,8 @@ export class RequestsService {
     }
 
     if ([RequestStatus.APPROVED, RequestStatus.VEHICLE_ASSIGNED].includes(request.status)) {
-      if (!isOwner && !isManager && !isAdmin) {
+      const coordinatorCancelAssigned = this.canCoordinatorCancelAssigned(request, user.role);
+      if (!isOwner && !isManager && !isAdmin && !coordinatorCancelAssigned) {
         throw new ForbiddenException('Only the requester or a manager can cancel at this stage.');
       }
       this.assertTransition(request.status, RequestStatus.CANCELLED);
@@ -431,12 +586,14 @@ export class RequestsService {
     await this.assertNoEmployeeDateConflict(
       String(request.requester),
       request.travelDate,
+      request.returnDate || request.travelDate,
       String(request._id),
     );
     request.status = RequestStatus.APPROVED;
     request.decidedBy = user.userId as any;
     request.decidedAt = new Date();
     request.rejectionReason = undefined;
+    this.ensureLegacyRequestFields(request);
     const saved = await request.save();
 
     const requesterId = String(request.requester);
@@ -473,6 +630,7 @@ export class RequestsService {
     request.decidedBy = user.userId as any;
     request.decidedAt = new Date();
     request.rejectionReason = reason;
+    this.ensureLegacyRequestFields(request);
     const saved = await request.save();
 
     const reasonText = reason ? ` Reason: ${reason}` : '';
@@ -494,42 +652,61 @@ export class RequestsService {
     const request = await this.requestModel.findById(id);
     if (!request) throw new NotFoundException('Vehicle request not found.');
     this.assertTransition(request.status, RequestStatus.VEHICLE_ASSIGNED);
+    this.ensureLegacyRequestFields(request);
+
+    const existingAssignment = await this.assignmentModel.findOne({ request: id });
+    if (existingAssignment) {
+      if (!existingAssignment.returnedAt && request.status === RequestStatus.APPROVED) {
+        request.status = RequestStatus.VEHICLE_ASSIGNED;
+        return request.save();
+      }
+      throw new BadRequestException('This request already has a vehicle assignment.');
+    }
 
     const vehicle = await this.vehiclesService.assertAssignable(dto.vehicleId, request.numberOfPassengers);
     await this.driversService.assertAssignable(dto.driverId);
     await this.assertDriverNotOnActiveTrip(dto.driverId, id);
-    await this.assertNoVehicleDateConflict(dto.vehicleId, request.travelDate, id);
-
-    const existingAssignment = await this.assignmentModel.findOne({ request: id });
-    if (existingAssignment) {
-      throw new BadRequestException('This request already has a vehicle assignment.');
-    }
-
-    const assignmentId = await this.nextSequence('ASG', this.assignmentModel);
-    await this.assignmentModel.create({
-      assignmentId,
-      request: id,
-      vehicle: dto.vehicleId,
-      driver: dto.driverId,
-      assignmentDate: new Date(),
-    });
-
-    await this.vehiclesService.markAssigned(dto.vehicleId);
-    request.status = RequestStatus.VEHICLE_ASSIGNED;
-    const saved = await request.save();
-
-    await this.safeNotify(() =>
-      this.notificationsService.createMany({
-        recipientIds: [String(request.requester)],
-        type: NotificationType.REQUEST_ASSIGNED,
-        title: 'Vehicle assigned',
-        message: `${request.requestNumber}: ${vehicle.plateNumber} (${vehicle.model}) has been assigned.`,
-        requestId: String(request._id),
-        requestNumber: request.requestNumber,
-      }),
+    await this.assertNoVehicleDateConflict(
+      dto.vehicleId,
+      request.travelDate,
+      request.returnDate || request.travelDate,
+      id,
     );
 
-    return saved;
+    const assignmentId = await this.nextSequence('ASG', this.assignmentModel);
+    let createdAssignment: VehicleAssignmentDocument | null = null;
+    try {
+      createdAssignment = await this.assignmentModel.create({
+        assignmentId,
+        request: id,
+        vehicle: dto.vehicleId,
+        driver: dto.driverId,
+        assignmentDate: new Date(),
+      });
+
+      await this.vehiclesService.markAssigned(dto.vehicleId);
+      request.status = RequestStatus.VEHICLE_ASSIGNED;
+      const saved = await request.save();
+
+      await this.safeNotify(() =>
+        this.notificationsService.createMany({
+          recipientIds: [String(request.requester)],
+          type: NotificationType.REQUEST_ASSIGNED,
+          title: 'Vehicle assigned',
+          message: `${request.requestNumber}: ${vehicle.plateNumber} (${vehicle.model}) has been assigned.`,
+          requestId: String(request._id),
+          requestNumber: request.requestNumber,
+        }),
+      );
+
+      return saved;
+    } catch (err) {
+      if (createdAssignment) {
+        await this.assignmentModel.findByIdAndDelete(createdAssignment._id);
+        await this.vehiclesService.markAvailable(dto.vehicleId);
+      }
+      throw err;
+    }
   }
 
   async reassignDriver(id: string, dto: ReassignDriverDto): Promise<VehicleAssignmentDocument> {
@@ -564,7 +741,12 @@ export class RequestsService {
     }
 
     const vehicle = await this.vehiclesService.assertAssignable(dto.vehicleId, request.numberOfPassengers);
-    await this.assertNoVehicleDateConflict(dto.vehicleId, request.travelDate, id);
+    await this.assertNoVehicleDateConflict(
+      dto.vehicleId,
+      request.travelDate,
+      request.returnDate || request.travelDate,
+      id,
+    );
 
     await this.vehiclesService.markUnderMaintenance(oldVehicleId);
     await this.vehiclesService.markAssigned(dto.vehicleId);
@@ -585,11 +767,19 @@ export class RequestsService {
     const request = await this.requestModel.findById(id);
     if (!request) throw new NotFoundException('Vehicle request not found.');
     this.assertTransition(request.status, RequestStatus.COMPLETED);
+    this.ensureLegacyRequestFields(request);
+    this.assertCanComplete(request);
 
     const assignment = await this.assignmentModel.findOne({ request: id });
     if (!assignment) {
       throw new BadRequestException('This request has no vehicle assignment to complete.');
     }
+
+    if (assignment.returnedAt) {
+      request.status = RequestStatus.COMPLETED;
+      return request.save();
+    }
+
     assignment.returnedAt = new Date();
     if (notes !== undefined) assignment.notes = notes;
     await assignment.save();

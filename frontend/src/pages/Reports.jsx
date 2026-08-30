@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api/client';
 import StatusBadge from '../components/StatusBadge';
 import { readCache, writeCache } from '../utils/sessionCache';
+import { formatDateRange, formatTripDuration } from '../utils/requestForm';
 import {
   buildAssignmentHistoryExport,
   buildRequestsByStatusExport,
@@ -192,14 +193,16 @@ function RequestsByStatusTable({ data }) {
             </h2>
             <div className="table-scroll">
               <table className="responsive-table">
-                <thead><tr><th>Request #</th><th>Requester</th><th>Destination</th><th>Travel Date</th><th>Priority</th></tr></thead>
+                <thead><tr><th>Request #</th><th>Requester</th><th>Branch</th><th>Destination</th><th>Duration</th><th>Dates</th><th>Priority</th></tr></thead>
                 <tbody>
                   {requests.map((r) => (
                     <tr key={r._id}>
                       <td data-label="Request #">{r.requestNumber}</td>
                       <td data-label="Requester">{r.requester?.fullName}</td>
+                      <td data-label="Branch">{r.branch || '—'}</td>
                       <td data-label="Destination">{r.destination}</td>
-                      <td data-label="Travel Date">{new Date(r.travelDate).toLocaleDateString()}</td>
+                      <td data-label="Duration">{formatTripDuration(r.tripDuration)}</td>
+                      <td data-label="Dates">{formatDateRange(r.travelDate, r.returnDate)}</td>
                       <td data-label="Priority">{r.priority === 'Urgent' ? <span className="badge Urgent">Urgent</span> : 'Normal'}</td>
                     </tr>
                   ))}

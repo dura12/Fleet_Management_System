@@ -26,6 +26,12 @@ export class RequestsController {
     return this.requestsService.getQueueStats(user);
   }
 
+  @Get('form-suggestions')
+  @Roles(Role.EMPLOYEE)
+  getFormSuggestions(@CurrentUser() user) {
+    return this.requestsService.getFormSuggestions(user.userId);
+  }
+
   @Post()
   @Roles(Role.EMPLOYEE)
   create(@Body() dto: CreateRequestDto, @CurrentUser() user) {

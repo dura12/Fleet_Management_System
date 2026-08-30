@@ -1,4 +1,4 @@
-import { IsBoolean, IsEmail, IsEnum, IsNotEmpty, IsOptional, MinLength } from 'class-validator';
+import { IsBoolean, IsEmail, IsEnum, IsMongoId, IsNotEmpty, IsOptional, MinLength } from 'class-validator';
 import { Role } from '../../common/roles.enum';
 
 export class UpdateUserDto {
@@ -21,6 +21,10 @@ export class UpdateUserDto {
   @IsOptional()
   @IsNotEmpty({ message: 'Department cannot be empty.' })
   department?: string;
+
+  @IsOptional()
+  @IsMongoId({ message: 'Default branch must be a valid ID.' })
+  defaultBranch?: string | null;
 
   @IsOptional()
   @IsEnum(Role, { message: 'Role must be one of: employee, manager, fleet_coordinator, admin.' })

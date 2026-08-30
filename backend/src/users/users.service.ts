@@ -24,6 +24,7 @@ export class UsersService {
       fullName: dto.fullName,
       email: dto.email.toLowerCase(),
       department: dto.department,
+      defaultBranch: dto.defaultBranch,
       role: dto.role,
       passwordHash,
     });
@@ -35,7 +36,7 @@ export class UsersService {
   }
 
   async findById(id: string): Promise<UserDocument> {
-    const user = await this.userModel.findById(id).select('-passwordHash');
+    const user = await this.userModel.findById(id).select('-passwordHash').populate('defaultBranch', 'name');
     if (!user) throw new NotFoundException('User not found.');
     return user;
   }
@@ -54,7 +55,7 @@ export class UsersService {
   }
 
   async findAll(): Promise<UserDocument[]> {
-    return this.userModel.find().select('-passwordHash').sort({ fullName: 1 });
+    return this.userModel.find().select('-passwordHash').populate('defaultBranch', 'name').sort({ fullName: 1 });
   }
 
   async update(id: string, dto: UpdateUserDto, actorRole: Role): Promise<UserDocument> {
@@ -75,6 +76,10 @@ export class UsersService {
 
     if (dto.fullName !== undefined) user.fullName = dto.fullName;
     if (dto.department !== undefined) user.department = dto.department;
+
+    if (dto.defaultBranch !== undefined) {
+      user.defaultBranch = dto.defaultBranch || undefined;
+    }
 
     if (dto.role !== undefined) {
       if (actorRole !== Role.ADMIN) {

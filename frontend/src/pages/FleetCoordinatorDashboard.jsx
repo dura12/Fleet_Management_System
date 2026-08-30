@@ -5,12 +5,8 @@ import { useRequestUi } from '../context/RequestUiContext';
 import DashboardFilters, { FilterSelect, filterDrivers, filterRequests, filterVehicles } from '../components/DashboardFilters';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 import { readCache, writeCache } from '../utils/sessionCache';
-
-function formatQueueDate(dateStr) {
-  const d = new Date(dateStr);
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) +
-    ', ' + d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-}
+import { formatDateRange, getTripPhase } from '../utils/requestForm';
+import ConfirmDialog from '../components/ConfirmDialog';
 
 function AssignmentQueueCard({ request, onOpen }) {
   const overdue = request.isOverdue;
@@ -31,7 +27,7 @@ function AssignmentQueueCard({ request, onOpen }) {
       <div className="queue-card-meta">
         <span>{request.numberOfPassengers} Passenger{request.numberOfPassengers !== 1 ? 's' : ''}</span>
         <span className="queue-card-dot">·</span>
-        <span>{formatQueueDate(request.travelDate)}</span>
+        <span>{formatDateRange(request.travelDate, request.returnDate)}</span>
       </div>
       <div className="queue-card-destination">{request.destination}</div>
       <span className="queue-card-action">Assign →</span>
@@ -74,7 +70,7 @@ function DriverListItem({ driver }) {
 }
 
 export default function FleetCoordinatorDashboard() {
-  const { openDetail, refreshKey } = useRequestUi();
+  const { openDetail, refreshKey, notifyChanged } = useRequestUi();
   const cached = readCache('fleet-dashboard');
   const [requests, setRequests] = useState(cached?.requests ?? null);
   const [vehicles, setVehicles] = useState(cached?.vehicles ?? null);
@@ -85,8 +81,10 @@ export default function FleetCoordinatorDashboard() {
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [queueFilter, setQueueFilter] = useState('');
-  const [vehicleFilter, setVehicleFilter] = useState('');
+  const [vehicleFilter, setVehicleFilter] = useState('Available');
   const [driverFilter, setDriverFilter] = useState('');
+  const [cancelTarget, setCancelTarget] = useState(null);
+  const [cancelBusy, setCancelBusy] = useState(false);
 
   const load = useCallback(async () => {
     setError('');
@@ -202,6 +200,22 @@ export default function FleetCoordinatorDashboard() {
       detail: stats?.awaitingAssignment ?? pendingAssignment.length,
     }));
   }, [stats, pendingAssignment.length]);
+
+  const handleCancelTrip = async () => {
+    if (!cancelTarget) return;
+    setCancelBusy(true);
+    setError('');
+    try {
+      await api.cancelRequest(cancelTarget._id);
+      setCancelTarget(null);
+      notifyChanged();
+      await load();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setCancelBusy(false);
+    }
+  };
 
   return (
     <div className="coordinator-dashboard">
@@ -336,6 +350,7 @@ export default function FleetCoordinatorDashboard() {
                 <tbody>
                   {filteredActiveTrips.map((r) => {
                     const a = assignments[r._id];
+                    const phase = getTripPhase(r.travelDate);
                     return (
                       <tr key={r._id}>
                         <td className="req-id" data-label="Request">{r.requestNumber}</td>
@@ -344,10 +359,26 @@ export default function FleetCoordinatorDashboard() {
                           {a?.driver?.driverName ? `, ${a.driver.driverName}` : ''}
                         </td>
                         <td data-label="Status">
-                          <span className="in-transit-badge">🚐 In Transit</span>
+                          {phase === 'scheduled' ? (
+                            <span className="scheduled-badge">Scheduled</span>
+                          ) : (
+                            <span className="in-transit-badge">🚐 In Transit</span>
+                          )}
                         </td>
                         <td data-label="Action">
                           <button type="button" className="btn-link" onClick={() => openDetail(r._id)}>Manage</button>
+                          {phase === 'scheduled' && (
+                            <>
+                              {' · '}
+                              <button
+                                type="button"
+                                className="btn-link"
+                                onClick={() => setCancelTarget(r)}
+                              >
+                                Cancel
+                              </button>
+                            </>
+                          )}
                         </td>
                       </tr>
                     );
@@ -372,6 +403,18 @@ export default function FleetCoordinatorDashboard() {
           </div>
         </section>
       </div>
+      )}
+
+      {cancelTarget && (
+        <ConfirmDialog
+          title="Cancel this trip?"
+          message={`Cancel ${cancelTarget.requestNumber} and release the assigned vehicle? The trip will not be marked as completed.`}
+          confirmLabel="Yes, cancel trip"
+          danger
+          busy={cancelBusy}
+          onCancel={() => setCancelTarget(null)}
+          onConfirm={handleCancelTrip}
+        />
       )}
     </div>
   );

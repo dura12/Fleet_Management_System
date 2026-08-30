@@ -7,6 +7,8 @@ import { RequestsController } from './requests.controller';
 import { VehiclesModule } from '../vehicles/vehicles.module';
 import { DriversModule } from '../drivers/drivers.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { SettingsModule } from '../settings/settings.module';
+import { UsersModule } from '../users/users.module';
 
 @Module({
   imports: [
@@ -17,6 +19,8 @@ import { NotificationsModule } from '../notifications/notifications.module';
     VehiclesModule,
     DriversModule,
     NotificationsModule,
+    SettingsModule,
+    UsersModule,
   ],
   controllers: [RequestsController],
   providers: [RequestsService],

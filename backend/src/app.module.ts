@@ -8,6 +8,7 @@ import { DriversModule } from './drivers/drivers.module';
 import { RequestsModule } from './requests/requests.module';
 import { ReportsModule } from './reports/reports.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { SettingsModule } from './settings/settings.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { NotificationsModule } from './notifications/notifications.module';
     RequestsModule,
     ReportsModule,
     NotificationsModule,
+    SettingsModule,
   ],
 })
 export class AppModule {}

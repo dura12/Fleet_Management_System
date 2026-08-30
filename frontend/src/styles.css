@@ -69,6 +69,16 @@ body {
   flex-shrink: 0;
 }
 .brand-logo-img-sm { width: 36px; height: 36px; }
+.brand-product-lockup {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+}
+.brand-fleet-icon {
+  flex-shrink: 0;
+  color: var(--otech-red);
+}
 .brand-subtitle {
   font-weight: 700;
   font-size: 0.95rem;
@@ -324,7 +334,16 @@ tr.row-overdue { background: #fff7ed; }
 .login-card { width: 380px; border-top: 3px solid var(--otech-red); }
 .login-brand { display: flex; justify-content: center; margin-bottom: 0.35rem; }
 .login-brand .brand-subtitle { font-size: 1.05rem; }
+.login-brand .brand-fleet-icon { width: 30px; height: 30px; }
+.login-brand .brand-product-lockup { gap: 0.55rem; }
 .login-tagline { text-align: center; margin-top: 0; }
+.login-description {
+  text-align: center;
+  margin: 0.35rem 0 1rem;
+  font-size: 0.88rem;
+  color: var(--muted);
+  line-height: 1.45;
+}
 .login-card h1 { text-align: center; }
 .login-card .subtitle { text-align: center; }
 .demo-accounts { margin-top: 1rem; font-size: 0.78rem; color: var(--muted); border-top: 1px solid var(--border); padding-top: 0.8rem; }
@@ -2535,6 +2554,17 @@ button.queue-card {
   padding: 0.25rem 0.55rem;
   border-radius: 999px;
 }
+.scheduled-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.25rem 0.55rem;
+  border-radius: 999px;
+}
 
 @media (min-width: 769px) {
   .nav-toggle,
@@ -2628,6 +2658,7 @@ button.queue-card {
 
   .brand-subtitle { font-size: 0.82rem; max-width: 140px; overflow: hidden; text-overflow: ellipsis; }
   .brand-logo-img { width: 36px; height: 36px; }
+  .brand-fleet-icon { width: 20px; height: 20px; }
 
   .grid-form { grid-template-columns: 1fr; }
   .filters { flex-direction: column; align-items: stretch; }
@@ -2913,6 +2944,7 @@ button.queue-card {
 
 @media (max-width: 480px) {
   .brand-subtitle { display: none; }
+  .brand-product-lockup { gap: 0; }
   .employee-navbar .icon-btn[title="History"],
   .coordinator-navbar .icon-btn[title="History"],
   .coordinator-navbar .icon-btn[title="Search"] { display: none; }
@@ -2925,4 +2957,78 @@ button.queue-card {
   .admin-stat-grid { grid-template-columns: 1fr; }
   .admin-stat-value { font-size: 1.45rem; }
   .admin-dashboard-sub { font-size: 0.85rem; }
+}
+
+.admin-settings-grid {
+  display: grid;
+  gap: 1.25rem;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+
+.admin-settings-card {
+  margin-bottom: 0;
+}
+
+.admin-settings-add {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.admin-settings-add input {
+  flex: 1;
+}
+
+.field-hint {
+  margin: 0.35rem 0 0.75rem;
+  font-size: 0.88rem;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.duration-chips {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.65rem;
+}
+
+.duration-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+}
+
+.duration-chip:hover {
+  border-color: var(--accent);
+}
+
+.duration-chip.active {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.duration-chip-label {
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+
+.duration-chip-subtitle {
+  font-size: 0.78rem;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.duration-preview {
+  margin: 0.75rem 0 0;
+  font-size: 0.92rem;
+  color: var(--muted);
 }

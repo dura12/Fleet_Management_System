@@ -4,7 +4,8 @@ import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import StatusBadge from '../components/StatusBadge';
 import ConfirmDialog from '../components/ConfirmDialog';
-import { MAX_PASSENGERS, toDateInputValue, validatePassengers } from '../utils/requestForm';
+import { validatePassengers, requestToFormFields, formToRequestPayload, formatDateRange, formatTripDuration } from '../utils/requestForm';
+import RequestFormFields, { useRequestFormSuggestions } from '../components/RequestFormFields';
 
 export default function RequestDetail({
   requestId,
@@ -32,6 +33,7 @@ export default function RequestDetail({
   const [busy, setBusy] = useState(false);
   const [editForm, setEditForm] = useState(null);
   const [confirmAction, setConfirmAction] = useState(null);
+  const { suggestions, loading: suggestionsLoading } = useRequestFormSuggestions();
 
   const finishClose = useCallback(() => {
     onChanged?.();
@@ -66,14 +68,17 @@ export default function RequestDetail({
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [id]);
 
   useEffect(() => {
+    setVehicleId('');
+    setDriverId('');
+    setReassignVehicleId('');
+    setReassignDriverId('');
+    setError('');
+    setMessage('');
+  }, [id]);
+
+  useEffect(() => {
     if (request?.status === 'Draft') {
-      setEditForm({
-        destination: request.destination,
-        purpose: request.purpose,
-        travelDate: toDateInputValue(request.travelDate),
-        numberOfPassengers: request.numberOfPassengers,
-        priority: request.priority || 'Normal',
-      });
+      setEditForm(requestToFormFields(request));
     } else {
       setEditForm(null);
     }
@@ -112,6 +117,10 @@ export default function RequestDetail({
         setReassignVehicleId('');
         setReassignDriverId('');
         setMessage('Trip completed. Vehicle and driver are available for new assignments.');
+      } else if (action === api.assignVehicle) {
+        setVehicleId('');
+        setDriverId('');
+        setMessage('Vehicle and driver assigned. The trip now appears under Active Assignments.');
       } else {
         setMessage('Done.');
       }
@@ -133,8 +142,12 @@ export default function RequestDetail({
   const eligibleVehicles = vehicles.filter(
     (v) => v.seatingCapacity == null || v.seatingCapacity >= request.numberOfPassengers,
   );
-
-  const updateEditForm = (field) => (e) => setEditForm({ ...editForm, [field]: e.target.value });
+  const departureStarted = new Date(request.travelDate) <= new Date();
+  const beforeExpectedReturn = request.returnDate && new Date() < new Date(request.returnDate);
+  const coordinatorCanCancelAssigned =
+    isCoordinator &&
+    request.status === 'Vehicle Assigned' &&
+    !departureStarted;
 
   const saveDraft = async () => {
     const passengerError = validatePassengers(editForm.numberOfPassengers);
@@ -142,13 +155,7 @@ export default function RequestDetail({
       setError(passengerError);
       return;
     }
-    await run(api.updateRequest, id, {
-      destination: editForm.destination,
-      purpose: editForm.purpose,
-      travelDate: editForm.travelDate,
-      numberOfPassengers: Number(editForm.numberOfPassengers),
-      priority: editForm.priority,
-    });
+    await run(api.updateRequest, id, formToRequestPayload(editForm));
   };
 
   const cancelRequest = async () => {
@@ -224,6 +231,24 @@ export default function RequestDetail({
     });
   };
 
+  const askCompleteTrip = () => {
+    if (!beforeExpectedReturn) {
+      run(api.completeRequest, id, tripNotes);
+      return;
+    }
+    const expectedReturnText = formatDateRange(request.returnDate, request.returnDate);
+    setConfirmAction({
+      title: 'Mark trip completed?',
+      message: `Expected return is ${expectedReturnText}. The vehicle will be released and the requester will be notified.`,
+      confirmLabel: 'Mark completed',
+      danger: false,
+      onConfirm: async () => {
+        setConfirmAction(null);
+        await run(api.completeRequest, id, tripNotes);
+      },
+    });
+  };
+
   return (
     <div className={embedded ? 'request-detail-embedded' : ''}>
       {!embedded && (
@@ -243,24 +268,23 @@ export default function RequestDetail({
 
       <div className="card">
         {canEditDraft && editForm ? (
-          <div className="grid-form">
-            <div><label>Requester</label><div>{request.requester?.fullName} ({request.requester?.department})</div></div>
-            <div><label>Status</label><div><StatusBadge status={request.status} /></div></div>
-            <div className="full"><label>Destination</label><input value={editForm.destination} onChange={updateEditForm('destination')} required /></div>
-            <div className="full"><label>Purpose</label><textarea value={editForm.purpose} onChange={updateEditForm('purpose')} required /></div>
-            <div><label>Travel Date</label><input type="date" value={editForm.travelDate} onChange={updateEditForm('travelDate')} required /></div>
-            <div><label>Number of Passengers</label><input type="number" min="1" max={MAX_PASSENGERS} value={editForm.numberOfPassengers} onChange={updateEditForm('numberOfPassengers')} required /></div>
-            <div><label>Priority</label>
-              <select value={editForm.priority} onChange={updateEditForm('priority')}>
-                <option value="Normal">Normal</option>
-                <option value="Urgent">Urgent</option>
-              </select>
-            </div>
-          </div>
+          suggestionsLoading ? (
+            <div className="empty-state">Loading form…</div>
+          ) : (
+            <RequestFormFields
+              form={editForm}
+              setForm={setEditForm}
+              suggestions={suggestions}
+              idPrefix="detail"
+            />
+          )
         ) : (
           <div className="grid-form">
             <div><label>Requester</label><div>{request.requester?.fullName} ({request.requester?.department})</div></div>
-            <div><label>Travel Date</label><div>{new Date(request.travelDate).toLocaleDateString()}</div></div>
+            <div><label>Start Location</label><div>{request.branch || '—'}</div></div>
+            <div><label>Trip Duration</label><div>{formatTripDuration(request.tripDuration)}</div></div>
+            <div><label>Departure</label><div>{formatDateRange(request.travelDate, request.travelDate)}</div></div>
+            <div><label>Expected Return</label><div>{formatDateRange(request.returnDate, request.returnDate)}</div></div>
             <div><label>Priority</label><div>{request.priority === 'Urgent' ? <span className="badge Urgent">Urgent</span> : 'Normal'}</div></div>
             <div className="full"><label>Destination</label><div>{request.destination}</div></div>
             <div className="full"><label>Purpose</label><div>{request.purpose}</div></div>
@@ -357,12 +381,29 @@ export default function RequestDetail({
 
       {isCoordinator && request.status === 'Vehicle Assigned' && (
         <div className="card">
-          <h2>Trip in Progress</h2>
+          <h2>{departureStarted ? 'Trip in Progress' : 'Scheduled Trip'}</h2>
+          {!departureStarted && (
+            <p className="subtitle">
+              Departure is scheduled for {formatDateRange(request.travelDate, request.travelDate)}.
+              Cancel to release the vehicle, or wait until departure to mark the trip completed.
+            </p>
+          )}
+          {coordinatorCanCancelAssigned && (
+            <div className="btn-row" style={{ marginBottom: '1rem' }}>
+              <button className="btn danger" disabled={busy} onClick={askCancelRequest}>Cancel Trip</button>
+            </div>
+          )}
           <label>Trip notes (optional — incidents, driver updates by phone)</label>
           <textarea value={tripNotes} onChange={(e) => setTripNotes(e.target.value)} />
           <div className="btn-row">
             <button className="btn secondary" disabled={busy} onClick={() => run(api.updateAssignmentNotes, id, tripNotes)}>Save Notes</button>
-            <button className="btn success" disabled={busy} onClick={() => run(api.completeRequest, id, tripNotes)}>Mark Trip Completed</button>
+            <button
+              className="btn success"
+              disabled={busy || !departureStarted}
+              onClick={askCompleteTrip}
+            >
+              Mark Trip Completed
+            </button>
           </div>
         </div>
       )}
@@ -421,7 +462,7 @@ export default function RequestDetail({
             <div><label>Vehicle</label><div>{assignment.vehicle?.plateNumber} — {assignment.vehicle?.model}</div></div>
             <div><label>Driver</label><div>{assignment.driver?.driverName} ({assignment.driver?.licenseNumber})</div></div>
             <div><label>Assignment Date</label><div>{new Date(assignment.assignmentDate).toLocaleDateString()}</div></div>
-            {assignment.returnedAt && <div><label>Completed On</label><div>{new Date(assignment.returnedAt).toLocaleDateString()}</div></div>}
+            {assignment.returnedAt && <div><label>Actual Return</label><div>{new Date(assignment.returnedAt).toLocaleString()}</div></div>}
             {assignment.notes && <div className="full"><label>Trip Notes</label><div>{assignment.notes}</div></div>}
           </div>
         </div>

@@ -4,6 +4,7 @@ import EmployeeStatusBadge from '../components/EmployeeStatusBadge';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 import { useRequestUi } from '../context/RequestUiContext';
 import { readCache, writeCache } from '../utils/sessionCache';
+import { formatTripSummary } from '../utils/requestForm';
 
 const PAGE_SIZE = 5;
 
@@ -14,9 +15,8 @@ const TABS = [
   { key: 'assigned', label: 'Assigned', statuses: ['Vehicle Assigned'] },
 ];
 
-function formatTravelDate(dateStr) {
-  const d = new Date(dateStr);
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+function formatTravelDate(travelDate, returnDate, tripDuration) {
+  return formatTripSummary({ travelDate, returnDate, tripDuration });
 }
 
 export default function EmployeeRequests() {
@@ -171,7 +171,7 @@ export default function EmployeeRequests() {
                         </td>
                         <td className="req-id" data-label="Req ID">{r.requestNumber}</td>
                         <td data-label="Destination">{r.destination}</td>
-                        <td data-label="Travel Date">{formatTravelDate(r.travelDate)}</td>
+                        <td data-label="Travel Date">{formatTravelDate(r.travelDate, r.returnDate, r.tripDuration)}</td>
                         <td data-label="Status"><EmployeeStatusBadge status={r.status} /></td>
                         <td className="actions" data-label="Actions" onClick={(e) => e.stopPropagation()}>
                           <button

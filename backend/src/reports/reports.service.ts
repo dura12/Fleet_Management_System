@@ -39,7 +39,7 @@ export class ReportsService {
       .find()
       .populate('vehicle', 'plateNumber model vehicleType seatingCapacity')
       .populate('driver', 'driverName licenseNumber')
-      .populate({ path: 'request', select: 'requestNumber destination travelDate status requester priority', populate: { path: 'requester', select: 'fullName department' } })
+      .populate({ path: 'request', select: 'requestNumber destination travelDate returnDate status requester priority branch', populate: { path: 'requester', select: 'fullName department' } })
       .sort({ assignmentDate: -1 })
       .lean();
   }
