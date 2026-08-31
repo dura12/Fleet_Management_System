@@ -3,12 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import { validatePassengers, formToRequestPayload } from '../utils/requestForm';
 import RequestFormFields, { useRequestFormSuggestions } from '../components/RequestFormFields';
+import { useErrorAlert } from '../context/ErrorContext';
 
 export default function NewRequest() {
   const navigate = useNavigate();
+  const { showError } = useErrorAlert();
   const { suggestions, loading, initialForm } = useRequestFormSuggestions();
   const [form, setForm] = useState(null);
-  const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -19,10 +20,9 @@ export default function NewRequest() {
 
   const handleSubmit = async (e, alsoSubmit) => {
     e.preventDefault();
-    setError('');
     const passengerError = validatePassengers(form.numberOfPassengers);
     if (passengerError) {
-      setError(passengerError);
+      showError(passengerError);
       return;
     }
     setSaving(true);
@@ -33,7 +33,7 @@ export default function NewRequest() {
       }
       navigate(`/requests/${created._id}`);
     } catch (err) {
-      setError(err.message);
+      showError(err);
     } finally {
       setSaving(false);
     }
@@ -43,7 +43,6 @@ export default function NewRequest() {
     <div>
       <h1>New Vehicle Request</h1>
       <p className="subtitle">Save as a draft to edit later, or submit directly for manager approval.</p>
-      {error && <div className="error-banner">{error}</div>}
       {loading || !form ? (
         <div className="empty-state">Loading form…</div>
       ) : (

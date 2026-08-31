@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import { useErrorAlert } from '../context/ErrorContext';
 import StatusBadge from '../components/StatusBadge';
 import ConfirmDialog from '../components/ConfirmDialog';
 import { validatePassengers, requestToFormFields, formToRequestPayload, formatDateRange, formatTripDuration } from '../utils/requestForm';
@@ -16,13 +17,14 @@ export default function RequestDetail({
   const params = useParams();
   const id = requestId || params.id;
   const { user } = useAuth();
+  const { showError } = useErrorAlert();
   const navigate = useNavigate();
 
   const [request, setRequest] = useState(null);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [assignment, setAssignment] = useState(null);
   const [vehicles, setVehicles] = useState([]);
   const [drivers, setDrivers] = useState([]);
-  const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [rejectionReason, setRejectionReason] = useState('');
   const [vehicleId, setVehicleId] = useState('');
@@ -49,7 +51,7 @@ export default function RequestDetail({
   };
 
   const load = async () => {
-    setError('');
+    setLoadFailed(false);
     try {
       const data = await api.getRequest(id);
       setRequest(data);
@@ -60,7 +62,8 @@ export default function RequestDetail({
       }
       return data;
     } catch (err) {
-      setError(err.message);
+      setLoadFailed(true);
+      showError(err);
       return null;
     }
   };
@@ -72,7 +75,6 @@ export default function RequestDetail({
     setDriverId('');
     setReassignVehicleId('');
     setReassignDriverId('');
-    setError('');
     setMessage('');
   }, [id]);
 
@@ -104,7 +106,6 @@ export default function RequestDetail({
   useEffect(() => { loadAssignableResources(); }, [loadAssignableResources]);
 
   const run = async (action, ...args) => {
-    setError('');
     setMessage('');
     setBusy(true);
     try {
@@ -125,14 +126,15 @@ export default function RequestDetail({
         setMessage('Done.');
       }
     } catch (err) {
-      setError(err.message);
+      showError(err);
     } finally {
       setBusy(false);
     }
   };
 
-  if (error && !request) return <div className="error-banner">{error}</div>;
-  if (!request) return <div className="empty-state">Loading…</div>;
+  if (!request) {
+    return <div className="empty-state">{loadFailed ? 'Could not load this request.' : 'Loading…'}</div>;
+  }
 
   const isOwner = request.requester?._id === user.id || request.requester === user.id;
   const isAdmin = user.role === 'admin';
@@ -152,14 +154,13 @@ export default function RequestDetail({
   const saveDraft = async () => {
     const passengerError = validatePassengers(editForm.numberOfPassengers);
     if (passengerError) {
-      setError(passengerError);
+      showError(passengerError);
       return;
     }
     await run(api.updateRequest, id, formToRequestPayload(editForm));
   };
 
   const cancelRequest = async () => {
-    setError('');
     setMessage('');
     setBusy(true);
     try {
@@ -173,7 +174,7 @@ export default function RequestDetail({
       setMessage('Request cancelled.');
       await load();
     } catch (err) {
-      setError(err.message);
+      showError(err);
     } finally {
       setBusy(false);
     }
@@ -209,7 +210,7 @@ export default function RequestDetail({
           onChanged?.();
           await load();
         } catch (err) {
-          setError(err.message);
+          showError(err);
         } finally {
           setBusy(false);
         }
@@ -263,7 +264,6 @@ export default function RequestDetail({
         </div>
       </div>
 
-      {error && <div className="error-banner">{error}</div>}
       {message && <div className="success-banner">{message}</div>}
 
       <div className="card">

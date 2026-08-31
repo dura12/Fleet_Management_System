@@ -7,6 +7,7 @@ export default function Modal({
   children,
   size = 'md',
   footer,
+  className = '',
 }) {
   useEffect(() => {
     const onKey = (e) => {
@@ -28,7 +29,7 @@ export default function Modal({
   }, [onClose]);
 
   return (
-    <div className="modal-backdrop" onClick={onClose} role="presentation">
+    <div className={`modal-backdrop${className ? ` ${className}` : ''}`} onClick={onClose} role="presentation">
       <div
         className={`modal-card app-modal app-modal-${size}`}
         onClick={(e) => e.stopPropagation()}

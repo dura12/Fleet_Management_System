@@ -3,10 +3,11 @@ import { api } from '../api/client';
 import EmployeeStatusBadge from '../components/EmployeeStatusBadge';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 import { useRequestUi } from '../context/RequestUiContext';
+import { useErrorAlert } from '../context/ErrorContext';
 import { readCache, writeCache } from '../utils/sessionCache';
 import { formatTripSummary } from '../utils/requestForm';
 
-const PAGE_SIZE = 5;
+const PAGE_SIZE = 7;
 
 const TABS = [
   { key: 'all', label: 'All Requests' },
@@ -21,8 +22,8 @@ function formatTravelDate(travelDate, returnDate, tripDuration) {
 
 export default function EmployeeRequests() {
   const { openCreate, openDetail, refreshKey } = useRequestUi();
+  const { showError } = useErrorAlert();
   const [requests, setRequests] = useState(() => readCache('employee-requests'));
-  const [error, setError] = useState('');
   const [tab, setTab] = useState('all');
   const [search, setSearch] = useState('');
   const [navSearch, setNavSearch] = useState('');
@@ -34,7 +35,6 @@ export default function EmployeeRequests() {
 
   useEffect(() => {
     let cancelled = false;
-    setError('');
     api.getRequests()
       .then((data) => {
         if (!cancelled) {
@@ -44,12 +44,12 @@ export default function EmployeeRequests() {
       })
       .catch((err) => {
         if (!cancelled) {
-          setError(err.message);
+          showError(err);
           setRequests((prev) => prev ?? []);
         }
       });
     return () => { cancelled = true; };
-  }, [refreshKey]);
+  }, [refreshKey, showError]);
 
   useEffect(() => {
     const onNavSearch = (e) => setNavSearch(e.detail || '');
@@ -108,8 +108,6 @@ export default function EmployeeRequests() {
         </div>
         <button type="button" className="btn btn-new-request" onClick={openCreate}>+ New Request</button>
       </div>
-
-      {error && <div className="error-banner">{error}</div>}
 
       <div className="employee-toolbar">
         <div className="filter-tabs">

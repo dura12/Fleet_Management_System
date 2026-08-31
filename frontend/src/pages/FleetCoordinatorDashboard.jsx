@@ -7,6 +7,7 @@ import LoadingSkeleton from '../components/LoadingSkeleton';
 import { readCache, writeCache } from '../utils/sessionCache';
 import { formatDateRange, getTripPhase } from '../utils/requestForm';
 import ConfirmDialog from '../components/ConfirmDialog';
+import { useErrorAlert } from '../context/ErrorContext';
 
 function AssignmentQueueCard({ request, onOpen }) {
   const overdue = request.isOverdue;
@@ -77,8 +78,8 @@ export default function FleetCoordinatorDashboard() {
   const [drivers, setDrivers] = useState(cached?.drivers ?? null);
   const [assignments, setAssignments] = useState(cached?.assignments ?? {});
   const [stats, setStats] = useState(cached?.stats ?? null);
+  const { showError } = useErrorAlert();
   const loading = requests === null;
-  const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [queueFilter, setQueueFilter] = useState('');
   const [vehicleFilter, setVehicleFilter] = useState('Available');
@@ -87,7 +88,6 @@ export default function FleetCoordinatorDashboard() {
   const [cancelBusy, setCancelBusy] = useState(false);
 
   const load = useCallback(async () => {
-    setError('');
     try {
       const [reqData, vehicleData, driverData, queueStats] = await Promise.all([
         api.getRequests(),
@@ -121,12 +121,12 @@ export default function FleetCoordinatorDashboard() {
         assignments: assignmentMap,
       });
     } catch (err) {
-      setError(err.message);
+      showError(err);
       setRequests((prev) => prev ?? []);
       setVehicles((prev) => prev ?? []);
       setDrivers((prev) => prev ?? []);
     }
-  }, []);
+  }, [showError]);
 
   useEffect(() => { load(); }, [load, refreshKey]);
 
@@ -204,14 +204,13 @@ export default function FleetCoordinatorDashboard() {
   const handleCancelTrip = async () => {
     if (!cancelTarget) return;
     setCancelBusy(true);
-    setError('');
     try {
       await api.cancelRequest(cancelTarget._id);
       setCancelTarget(null);
       notifyChanged();
       await load();
     } catch (err) {
-      setError(err.message);
+      showError(err);
     } finally {
       setCancelBusy(false);
     }
@@ -219,7 +218,6 @@ export default function FleetCoordinatorDashboard() {
 
   return (
     <div className="coordinator-dashboard">
-      {error && <div className="error-banner">{error}</div>}
 
       <DashboardFilters
         search={search}

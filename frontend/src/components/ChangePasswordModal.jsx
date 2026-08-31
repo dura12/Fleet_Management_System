@@ -1,30 +1,30 @@
 import { useState } from 'react';
 import { api } from '../api/client';
 import Modal from './Modal';
+import { useErrorAlert } from '../context/ErrorContext';
 
 export default function ChangePasswordModal({ onClose }) {
+  const { showError } = useErrorAlert();
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [busy, setBusy] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
     setSuccess('');
 
     if (newPassword.length < 6) {
-      setError('New password must be at least 6 characters.');
+      showError('New password must be at least 6 characters.');
       return;
     }
     if (newPassword !== confirmPassword) {
-      setError('New password and confirmation do not match.');
+      showError('New password and confirmation do not match.');
       return;
     }
     if (newPassword === currentPassword) {
-      setError('New password must be different from your current password.');
+      showError('New password must be different from your current password.');
       return;
     }
 
@@ -36,7 +36,7 @@ export default function ChangePasswordModal({ onClose }) {
       setNewPassword('');
       setConfirmPassword('');
     } catch (err) {
-      setError(err.message || 'Could not update password.');
+      showError(err);
     } finally {
       setBusy(false);
     }
@@ -49,7 +49,6 @@ export default function ChangePasswordModal({ onClose }) {
       size="md"
       onClose={onClose}
     >
-      {error && <div className="error-banner">{error}</div>}
       {success && <div className="success-banner">{success}</div>}
       <form onSubmit={handleSubmit} className="change-password-form">
         <label>

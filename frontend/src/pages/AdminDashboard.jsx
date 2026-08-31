@@ -8,6 +8,7 @@ import ConfirmDialog from '../components/ConfirmDialog';
 import DashboardFilters, { FilterSelect, filterUsers } from '../components/DashboardFilters';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 import { readCache, writeCache } from '../utils/sessionCache';
+import { useErrorAlert } from '../context/ErrorContext';
 import { formatDateRange } from '../utils/requestForm';
 
 const ROLE_OPTIONS = [
@@ -66,6 +67,7 @@ function StatCard({ label, value, hint }) {
 }
 
 function UserFormModal({ user, branches, departments, onClose, onSaved }) {
+  const { showError } = useErrorAlert();
   const isEdit = Boolean(user?._id);
   const [form, setForm] = useState(
     user
@@ -81,12 +83,10 @@ function UserFormModal({ user, branches, departments, onClose, onSaved }) {
         }
       : { ...EMPTY_USER, defaultBranch: '', isActive: true },
   );
-  const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
     setBusy(true);
     try {
       if (isEdit) {
@@ -103,7 +103,7 @@ function UserFormModal({ user, branches, departments, onClose, onSaved }) {
         await api.updateUser(user._id, payload);
       } else {
         if (!form.password) {
-          setError('Password is required for new users.');
+          showError('Password is required for new users.');
           setBusy(false);
           return;
         }
@@ -120,7 +120,7 @@ function UserFormModal({ user, branches, departments, onClose, onSaved }) {
       onSaved();
       onClose();
     } catch (err) {
-      setError(err.message);
+      showError(err);
     } finally {
       setBusy(false);
     }
@@ -137,7 +137,6 @@ function UserFormModal({ user, branches, departments, onClose, onSaved }) {
 
   return (
     <Modal title={isEdit ? 'Edit User' : 'Create User'} size="md" onClose={onClose}>
-      {error && <div className="error-banner">{error}</div>}
       <form onSubmit={handleSubmit} className="admin-user-modal">
         <label>Employee ID</label>
         <p className="field-hint">Official company ID from HR</p>
@@ -325,12 +324,12 @@ function UserManagement({ users, branches, departments, onRefresh, loading }) {
 }
 
 function RequestOversight({ requests, onRefresh, loading }) {
+  const { showError } = useErrorAlert();
   const { openDetail } = useRequestUi();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [priorityFilter, setPriorityFilter] = useState('');
   const [busyId, setBusyId] = useState(null);
-  const [error, setError] = useState('');
   const [confirmOverride, setConfirmOverride] = useState(null);
 
   const filtered = useMemo(() => {
@@ -350,14 +349,13 @@ function RequestOversight({ requests, onRefresh, loading }) {
   }, [requests, search, statusFilter, priorityFilter]);
 
   const handleOverride = async (id, status) => {
-    setError('');
     setBusyId(id);
     try {
       await api.overrideRequestStatus(id, status);
       setConfirmOverride(null);
       await onRefresh();
     } catch (err) {
-      setError(err.message);
+      showError(err);
     } finally {
       setBusyId(null);
     }
@@ -381,7 +379,6 @@ function RequestOversight({ requests, onRefresh, loading }) {
           <p className="admin-panel-sub">View all requests and override workflow status when needed.</p>
         </div>
       </div>
-      {error && <div className="error-banner">{error}</div>}
       <DashboardFilters
         search={search}
         onSearchChange={setSearch}
@@ -474,20 +471,19 @@ function RequestOversight({ requests, onRefresh, loading }) {
 }
 
 function LookupTable({ title, subtitle, items, onAdd, onToggle }) {
+  const { showError } = useErrorAlert();
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
 
   const handleAdd = async (e) => {
     e.preventDefault();
     if (!name.trim()) return;
-    setError('');
     setBusy(true);
     try {
       await onAdd(name.trim());
       setName('');
     } catch (err) {
-      setError(err.message);
+      showError(err);
     } finally {
       setBusy(false);
     }
@@ -501,7 +497,6 @@ function LookupTable({ title, subtitle, items, onAdd, onToggle }) {
           <p className="admin-panel-sub">{subtitle}</p>
         </div>
       </div>
-      {error && <div className="error-banner">{error}</div>}
       <form onSubmit={handleAdd} className="admin-settings-add">
         <input
           value={name}
@@ -596,6 +591,7 @@ function SettingsManagement({ branches, destinations, departments, onRefresh, lo
 }
 
 export default function AdminDashboard() {
+  const { showError } = useErrorAlert();
   const { refreshKey } = useRequestUi();
   const cached = readCache('admin-dashboard');
   const [tab, setTab] = useState('overview');
@@ -608,11 +604,9 @@ export default function AdminDashboard() {
   const [branches, setBranches] = useState(cached?.branches ?? null);
   const [destinations, setDestinations] = useState(cached?.destinations ?? null);
   const [departments, setDepartments] = useState(cached?.departments ?? null);
-  const [error, setError] = useState('');
   const loading = users === null;
 
   const load = useCallback(async () => {
-    setError('');
     try {
       const [userData, reqData, vehicleData, driverData, uStats, rStats, branchData, destData, deptData] = await Promise.all([
         api.getUsers(),
@@ -646,13 +640,13 @@ export default function AdminDashboard() {
         departments: deptData,
       });
     } catch (err) {
-      setError(err.message);
+      showError(err);
       setUsers((prev) => prev ?? []);
       setRequests((prev) => prev ?? []);
       setVehicles((prev) => prev ?? []);
       setDrivers((prev) => prev ?? []);
     }
-  }, []);
+  }, [showError]);
 
   useEffect(() => {
     load();
@@ -660,7 +654,6 @@ export default function AdminDashboard() {
 
   return (
     <div className="admin-dashboard">
-      {error && <div className="error-banner">{error}</div>}
 
       <div className="admin-dash-tabs" role="tablist">
         {DASH_TABS.map((t) => (

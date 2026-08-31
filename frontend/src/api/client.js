@@ -1,3 +1,5 @@
+import { formatErrorMessage } from '../utils/errorMessage';
+
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
 function getToken() {
@@ -18,7 +20,7 @@ async function request(path, { method = 'GET', body, auth = true } = {}) {
   const isJson = res.headers.get('content-type')?.includes('application/json');
   const data = isJson ? await res.json() : null;
   if (!res.ok) {
-    const message = (data && data.message) || `Request failed (${res.status})`;
+    const message = formatErrorMessage(data?.message) || `Request failed (${res.status})`;
     throw new Error(message);
   }
   return data;

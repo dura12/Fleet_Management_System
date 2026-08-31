@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api/client';
 import StatusBadge from '../components/StatusBadge';
 import { readCache, writeCache } from '../utils/sessionCache';
+import { useErrorAlert } from '../context/ErrorContext';
 import { formatDateRange, formatTripDuration } from '../utils/requestForm';
 import {
   buildAssignmentHistoryExport,
@@ -23,9 +24,9 @@ const FETCHERS = {
 };
 
 export default function Reports({ embedded = false }) {
+  const { showError } = useErrorAlert();
   const [tab, setTab] = useState('vehicle-register');
   const [cache, setCache] = useState(() => readCache('reports', {}));
-  const [error, setError] = useState('');
   const [downloading, setDownloading] = useState(false);
   const cacheRef = useRef(cache);
   cacheRef.current = cache;
@@ -36,7 +37,6 @@ export default function Reports({ embedded = false }) {
     if (cacheRef.current[tab] != null) return undefined;
 
     let cancelled = false;
-    setError('');
 
     FETCHERS[tab]()
       .then((result) => {
@@ -49,15 +49,14 @@ export default function Reports({ embedded = false }) {
         }
       })
       .catch((err) => {
-        if (!cancelled) setError(err.message);
+        if (!cancelled) showError(err);
       });
 
     return () => { cancelled = true; };
-  }, [tab]);
+  }, [tab, showError]);
 
   const downloadReport = useCallback(async () => {
     setDownloading(true);
-    setError('');
     try {
       let reportData = cacheRef.current[tab];
       if (!reportData) {
@@ -80,11 +79,11 @@ export default function Reports({ embedded = false }) {
 
       downloadCsv(filename, sections);
     } catch (err) {
-      setError(err.message || 'Download failed');
+      showError(err);
     } finally {
       setDownloading(false);
     }
-  }, [tab]);
+  }, [tab, showError]);
 
   const activeTab = TABS.find((t) => t.key === tab);
 
@@ -122,8 +121,6 @@ export default function Reports({ embedded = false }) {
           {downloading ? 'Downloading…' : 'Download CSV'}
         </button>
       </div>
-
-      {error && <div className="error-banner">{error}</div>}
 
       <div className="card reports-card">
         {!embedded && activeTab && (

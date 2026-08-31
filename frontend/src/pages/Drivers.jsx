@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import Modal from '../components/Modal';
 import ConfirmDialog from '../components/ConfirmDialog';
 import { readCache, writeCache } from '../utils/sessionCache';
+import { useErrorAlert } from '../context/ErrorContext';
 
 const emptyForm = { driverId: '', driverName: '', employeeId: '', licenseNumber: '', licenseExpiry: '' };
 
@@ -13,13 +14,13 @@ function isExpired(date) {
 
 export default function Drivers() {
   const { user } = useAuth();
+  const { showError } = useErrorAlert();
   const canEdit = user.role === 'fleet_coordinator' || user.role === 'admin';
   const [search, setSearch] = useState('');
   const [drivers, setDrivers] = useState(() => readCache('drivers:', []));
   const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState(null);
   const [showForm, setShowForm] = useState(false);
-  const [error, setError] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(null);
 
   const load = async () => {
@@ -31,7 +32,7 @@ export default function Drivers() {
       setDrivers(data);
       writeCache(cacheKey, data);
     } catch (err) {
-      setError(err.message);
+      showError(err);
     }
   };
 
@@ -65,7 +66,6 @@ export default function Drivers() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
     try {
       if (editingId) {
         const { driverId, ...rest } = form;
@@ -76,18 +76,17 @@ export default function Drivers() {
       closeForm();
       load();
     } catch (err) {
-      setError(err.message);
+      showError(err);
     }
   };
 
   const handleDelete = async (driver) => {
-    setError('');
     try {
       await api.deleteDriver(driver._id);
       setConfirmDelete(null);
       load();
     } catch (err) {
-      setError(err.message);
+      showError(err);
     }
   };
 
@@ -113,8 +112,6 @@ export default function Drivers() {
         )}
       </div>
 
-      {error && !showForm && <div className="error-banner">{error}</div>}
-
       <div className="filters">
         <div>
           <label>Search</label>
@@ -124,7 +121,6 @@ export default function Drivers() {
 
       {showForm && canEdit && (
         <Modal title={editingId ? 'Edit Driver' : 'New Driver'} size="md" onClose={closeForm}>
-          {error && <div className="error-banner">{error}</div>}
           <form onSubmit={handleSubmit}>
             <div className="grid-form">
               {!editingId && (

@@ -12,6 +12,7 @@ import ConfirmDialog from '../components/ConfirmDialog';
 import DashboardFilters, { FilterSelect, filterDrivers, filterVehicles } from '../components/DashboardFilters';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 import { readCache, writeCache } from '../utils/sessionCache';
+import { useErrorAlert } from '../context/ErrorContext';
 import { formatDateRange } from '../utils/requestForm';
 
 import {
@@ -82,6 +83,8 @@ function formatMileage(total) {
 
 function ApprovalQueue({ requests, stats, vehicles, onRefresh, loading }) {
 
+  const { showError } = useErrorAlert();
+
   const { openDetail } = useRequestUi();
 
   const safeRequests = requests ?? [];
@@ -93,8 +96,6 @@ function ApprovalQueue({ requests, stats, vehicles, onRefresh, loading }) {
   const [queueFilter, setQueueFilter] = useState('');
 
   const [busyId, setBusyId] = useState(null);
-
-  const [error, setError] = useState('');
 
   const [message, setMessage] = useState('');
 
@@ -190,8 +191,6 @@ function ApprovalQueue({ requests, stats, vehicles, onRefresh, loading }) {
 
   const runDecision = async (id, action) => {
 
-    setError('');
-
     setMessage('');
 
     setBusyId(id);
@@ -218,7 +217,7 @@ function ApprovalQueue({ requests, stats, vehicles, onRefresh, loading }) {
 
     } catch (err) {
 
-      setError(err.message);
+      showError(err);
 
     } finally {
 
@@ -308,8 +307,6 @@ function ApprovalQueue({ requests, stats, vehicles, onRefresh, loading }) {
       </div>
 
 
-
-      {error && <div className="error-banner">{error}</div>}
 
       {message && <div className="success-banner">{message}</div>}
 
@@ -735,6 +732,8 @@ function ReadOnlyDrivers({ drivers, loading }) {
 
 export default function ManagerDashboard() {
 
+  const { showError } = useErrorAlert();
+
   const { refreshKey } = useRequestUi();
 
   const cached = readCache('manager-dashboard');
@@ -753,13 +752,9 @@ export default function ManagerDashboard() {
 
   const [exporting, setExporting] = useState(false);
 
-  const [error, setError] = useState('');
-
 
 
   const load = useCallback(async () => {
-
-    setError('');
 
     try {
 
@@ -792,7 +787,7 @@ export default function ManagerDashboard() {
 
     } catch (err) {
 
-      setError(err.message);
+      showError(err);
 
       setRequests((prev) => prev ?? []);
 
@@ -802,7 +797,7 @@ export default function ManagerDashboard() {
 
     }
 
-  }, [refreshKey]);
+  }, [refreshKey, showError]);
 
 
 
@@ -830,8 +825,6 @@ export default function ManagerDashboard() {
 
     setExporting(true);
 
-    setError('');
-
     try {
 
       const [reqData, vehicleData, driverData, assignmentData] = await Promise.all([
@@ -854,7 +847,7 @@ export default function ManagerDashboard() {
 
     } catch (err) {
 
-      setError(err.message || 'Export failed');
+      showError(err);
 
     } finally {
 
@@ -862,7 +855,7 @@ export default function ManagerDashboard() {
 
     }
 
-  }, []);
+  }, [showError]);
 
 
 
@@ -947,10 +940,6 @@ export default function ManagerDashboard() {
         ))}
 
       </div>
-
-
-
-      {error && <div className="error-banner">{error}</div>}
 
 
 

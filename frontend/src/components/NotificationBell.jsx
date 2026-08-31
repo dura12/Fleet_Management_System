@@ -1,55 +1,35 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { api } from '../api/client';
+import { useNotifications } from '../context/NotificationContext';
 import { useRequestUi } from '../context/RequestUiContext';
+import { formatWhen, getNotificationMeta, NOTIFICATION_PANEL_LIMIT, requestIdOf } from '../utils/notificationMeta';
 
-function formatWhen(dateStr) {
-  if (!dateStr) return '';
-  const d = new Date(dateStr);
-  const diffMs = Date.now() - d.getTime();
-  const mins = Math.floor(diffMs / 60000);
-  if (mins < 1) return 'Just now';
-  if (mins < 60) return `${mins}m ago`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  if (days < 7) return `${days}d ago`;
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-}
-
-function requestIdOf(notification) {
-  const ref = notification?.request;
-  if (!ref) return null;
-  if (typeof ref === 'string') return ref;
-  return ref._id || null;
+function BellIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M12 3a5 5 0 0 0-5 5v2.1c0 .5-.2 1-.5 1.4L5.1 14.2A1 1 0 0 0 6 16h12a1 1 0 0 0 .9-1.4l-1.4-2.7c-.3-.4-.5-.9-.5-1.4V8a5 5 0 0 0-5-5Z"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M10 18a2 2 0 0 0 4 0"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
 }
 
 export default function NotificationBell() {
+  const { items, count, refresh, markRead, markAllRead } = useNotifications();
   const { openDetail, refreshKey } = useRequestUi();
   const [open, setOpen] = useState(false);
-  const [items, setItems] = useState([]);
-  const [count, setCount] = useState(0);
   const [panelStyle, setPanelStyle] = useState(undefined);
   const wrapRef = useRef(null);
   const panelRef = useRef(null);
-
-  const refreshCount = useCallback(async () => {
-    try {
-      const data = await api.getUnreadNotificationCount();
-      setCount(data?.count || 0);
-    } catch {
-      // ignore polling errors
-    }
-  }, []);
-
-  const refreshList = useCallback(async () => {
-    try {
-      const list = await api.getNotifications();
-      setItems(Array.isArray(list) ? list : []);
-    } catch {
-      setItems((prev) => (prev.length ? prev : []));
-    }
-  }, []);
 
   const updatePanelPosition = useCallback(() => {
     if (typeof window === 'undefined') return;
@@ -60,39 +40,19 @@ export default function NotificationBell() {
     const anchor = wrapRef.current;
     if (!anchor) return;
     const r = anchor.getBoundingClientRect();
-    const width = Math.min(360, window.innerWidth - 16);
+    const width = Math.min(380, window.innerWidth - 16);
     let right = window.innerWidth - r.right;
     right = Math.max(8, Math.min(right, window.innerWidth - width - 8));
-    const top = Math.min(r.bottom + 8, window.innerHeight - 80);
+    const top = Math.min(r.bottom + 10, window.innerHeight - 80);
     setPanelStyle({ top: `${top}px`, right: `${right}px`, left: 'auto' });
   }, []);
 
   useEffect(() => {
-    refreshCount();
-    const id = setInterval(refreshCount, 20000);
-    const onFocus = () => refreshCount();
-    const onVisible = () => {
-      if (document.visibilityState === 'visible') refreshCount();
-    };
-    window.addEventListener('focus', onFocus);
-    document.addEventListener('visibilitychange', onVisible);
-    window.addEventListener('fms-notifications-refresh', refreshCount);
-    return () => {
-      clearInterval(id);
-      window.removeEventListener('focus', onFocus);
-      document.removeEventListener('visibilitychange', onVisible);
-      window.removeEventListener('fms-notifications-refresh', refreshCount);
-    };
-  }, [refreshCount]);
-
-  useEffect(() => {
-    refreshCount();
-    if (open) refreshList();
-  }, [refreshKey, refreshCount, open, refreshList]);
+    refresh({ toastNew: false });
+  }, [refreshKey, refresh]);
 
   useEffect(() => {
     if (!open) return undefined;
-    refreshList();
     updatePanelPosition();
     const onResize = () => updatePanelPosition();
     window.addEventListener('resize', onResize);
@@ -106,7 +66,7 @@ export default function NotificationBell() {
       window.removeEventListener('scroll', onResize, true);
       document.body.style.overflow = prevOverflow;
     };
-  }, [open, refreshList, updatePanelPosition, items.length]);
+  }, [open, updatePanelPosition, items.length]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -127,43 +87,27 @@ export default function NotificationBell() {
     };
   }, [open]);
 
-  const handleOpen = () => setOpen((v) => !v);
-
   const handleClickItem = async (n) => {
-    try {
-      if (!n.readAt) await api.markNotificationRead(n._id);
-    } catch {
-      // ignore
-    }
-    setItems((prev) =>
-      prev.map((x) => (x._id === n._id ? { ...x, readAt: x.readAt || new Date().toISOString() } : x)),
-    );
-    setCount((c) => Math.max(0, c - (n.readAt ? 0 : 1)));
+    if (!n.readAt) await markRead(n._id);
     setOpen(false);
     const id = requestIdOf(n);
     if (id) openDetail(id);
   };
 
-  const handleMarkAll = async (e) => {
+  const unread = items.filter((n) => !n.readAt).length;
+  const visibleItems = items.slice(0, NOTIFICATION_PANEL_LIMIT);
+  const hiddenCount = Math.max(0, items.length - NOTIFICATION_PANEL_LIMIT);
+
+  const handleMarkAllRead = async (e) => {
     e.stopPropagation();
-    try {
-      await api.markAllNotificationsRead();
-      setItems((prev) => prev.map((x) => ({ ...x, readAt: x.readAt || new Date().toISOString() })));
-      setCount(0);
-    } catch {
-      // ignore
-    }
+    await markAllRead();
   };
 
   const panel =
     open &&
     createPortal(
       <>
-        <div
-          className="notification-backdrop"
-          onClick={() => setOpen(false)}
-          aria-hidden
-        />
+        <div className="notification-backdrop" onClick={() => setOpen(false)} aria-hidden />
         <div
           ref={panelRef}
           className="notification-panel"
@@ -172,36 +116,57 @@ export default function NotificationBell() {
           style={panelStyle}
         >
           <div className="notification-panel-header">
-            <strong>Notifications</strong>
+            <div className="notification-panel-heading">
+              <strong>Notifications</strong>
+              {unread > 0 && <span className="notification-panel-pill">{unread} new</span>}
+            </div>
             {count > 0 && (
-              <button type="button" className="link-btn" onClick={handleMarkAll}>
+              <button type="button" className="link-btn" onClick={handleMarkAllRead}>
                 Mark all read
               </button>
             )}
           </div>
           <div className="notification-panel-body">
-            {items.length === 0 ? (
-              <p className="notification-empty">🔕 No notifications yet.</p>
+            {visibleItems.length === 0 ? (
+              <div className="notification-empty">
+                <span className="notification-empty-icon" aria-hidden>🔔</span>
+                <p>You're all caught up</p>
+                <span className="notification-empty-hint">New updates will pop up here.</span>
+              </div>
             ) : (
-              items.map((n) => (
-                <button
-                  key={n._id}
-                  type="button"
-                  className={`notification-item${!n.readAt ? ' unread' : ''}`}
-                  onClick={() => handleClickItem(n)}
-                >
-                  <div className="notification-item-top">
-                    <span className="notification-item-title">{n.title}</span>
-                    <span className="notification-item-time">{formatWhen(n.createdAt)}</span>
-                  </div>
-                  <p className="notification-item-msg">{n.message}</p>
-                  {n.requestNumber && (
-                    <span className="notification-item-meta">{n.requestNumber}</span>
-                  )}
-                </button>
-              ))
+              visibleItems.map((n) => {
+                const meta = getNotificationMeta(n.type);
+                return (
+                  <button
+                    key={n._id}
+                    type="button"
+                    className={`notification-item notification-item--${meta.tone}${!n.readAt ? ' unread' : ''}`}
+                    onClick={() => handleClickItem(n)}
+                  >
+                    <span className="notification-item-icon" aria-hidden>
+                      {meta.icon}
+                    </span>
+                    <span className="notification-item-main">
+                      <span className="notification-item-top">
+                        <span className="notification-item-title">{n.title}</span>
+                        <span className="notification-item-time">{formatWhen(n.createdAt)}</span>
+                      </span>
+                      <p className="notification-item-msg">{n.message}</p>
+                      {n.requestNumber && (
+                        <span className="notification-item-meta">{n.requestNumber}</span>
+                      )}
+                    </span>
+                    {!n.readAt && <span className="notification-item-dot" aria-label="Unread" />}
+                  </button>
+                );
+              })
             )}
           </div>
+          {hiddenCount > 0 && (
+            <div className="notification-panel-footer">
+              Showing latest {NOTIFICATION_PANEL_LIMIT} of {items.length}
+            </div>
+          )}
         </div>
       </>,
       document.body,
@@ -211,13 +176,13 @@ export default function NotificationBell() {
     <div className="notification-bell-wrap" ref={wrapRef}>
       <button
         type="button"
-        className="icon-btn notification-bell-btn"
+        className={`icon-btn notification-bell-btn${count > 0 ? ' has-unread' : ''}`}
         title="Notifications"
         aria-label={count > 0 ? `Notifications, ${count} unread` : 'Notifications'}
         aria-expanded={open}
-        onClick={handleOpen}
+        onClick={() => setOpen((v) => !v)}
       >
-        <span aria-hidden>🔔</span>
+        <BellIcon />
         {count > 0 && <span className="notification-badge">{count > 99 ? '99+' : count}</span>}
       </button>
       {panel}

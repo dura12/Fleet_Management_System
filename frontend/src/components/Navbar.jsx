@@ -117,15 +117,7 @@ function CoordinatorNavbar({ user, roleLabel, onLogout, onChangePassword }) {
             ))}
           </nav>
           <div className="navbar-right">
-            <button
-              type="button"
-              className="nav-toggle coordinator-nav-toggle"
-              aria-expanded={navOpen}
-              aria-label={navOpen ? 'Close menu' : 'Open menu'}
-              onClick={() => setNavOpen((o) => !o)}
-            >
-              {navOpen ? '✕' : '☰'}
-            </button>
+           
             <NotificationBell />
             <a href="#" className="help-link coordinator-desktop-only" onClick={(e) => e.preventDefault()}>Help</a>
             <ProfileMenu

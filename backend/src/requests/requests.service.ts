@@ -275,20 +275,24 @@ export class RequestsService {
     travelDate: Date | string,
     returnDate: Date | string,
     excludeRequestId: string,
+    forEmployee = false,
   ) {
     const start = new Date(travelDate);
     const end = new Date(returnDate);
     const conflict = await this.requestModel.findOne({
       _id: { $ne: excludeRequestId },
       requester: requesterId,
-      status: { $in: [RequestStatus.APPROVED, RequestStatus.VEHICLE_ASSIGNED] },
+      status: {
+        $in: [RequestStatus.SUBMITTED, RequestStatus.APPROVED, RequestStatus.VEHICLE_ASSIGNED],
+      },
       travelDate: { $lte: end },
       returnDate: { $gte: start },
     });
     if (conflict) {
-      throw new BadRequestException(
-        `This employee already has an active trip overlapping those dates (request ${conflict.requestNumber}).`,
-      );
+      const message = forEmployee
+        ? `You already have a request overlapping those dates (${conflict.requestNumber}). Adjust your dates or cancel the other request first.`
+        : `This employee already has a request overlapping those dates (${conflict.requestNumber}).`;
+      throw new BadRequestException(message);
     }
   }
 
@@ -478,6 +482,13 @@ export class RequestsService {
       throw new ForbiddenException('You can only submit your own requests.');
     }
     this.assertTransition(request.status, RequestStatus.SUBMITTED);
+    await this.assertNoEmployeeDateConflict(
+      String((request.requester as any)._id || request.requester),
+      request.travelDate,
+      request.returnDate || request.travelDate,
+      String(request._id),
+      user.role === Role.EMPLOYEE,
+    );
     request.status = RequestStatus.SUBMITTED;
     request.submittedAt = new Date();
     this.ensureLegacyRequestFields(request);

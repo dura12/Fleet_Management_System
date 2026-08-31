@@ -3,11 +3,12 @@ import { api } from '../api/client';
 import { validatePassengers, formToRequestPayload } from '../utils/requestForm';
 import Modal from './Modal';
 import RequestFormFields, { useRequestFormSuggestions } from './RequestFormFields';
+import { useErrorAlert } from '../context/ErrorContext';
 
 export default function RequestFormModal({ onClose, onCreated }) {
+  const { showError } = useErrorAlert();
   const { suggestions, loading, initialForm } = useRequestFormSuggestions();
   const [form, setForm] = useState(null);
-  const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -18,10 +19,9 @@ export default function RequestFormModal({ onClose, onCreated }) {
 
   const handleSubmit = async (e, alsoSubmit) => {
     e.preventDefault();
-    setError('');
     const passengerError = validatePassengers(form.numberOfPassengers);
     if (passengerError) {
-      setError(passengerError);
+      showError(passengerError);
       return;
     }
     setSaving(true);
@@ -32,7 +32,7 @@ export default function RequestFormModal({ onClose, onCreated }) {
       }
       onCreated?.(created);
     } catch (err) {
-      setError(err.message);
+      showError(err);
     } finally {
       setSaving(false);
     }
@@ -45,7 +45,6 @@ export default function RequestFormModal({ onClose, onCreated }) {
       size="md"
       onClose={onClose}
     >
-      {error && <div className="error-banner">{error}</div>}
       {loading || !form ? (
         <div className="empty-state">Loading form…</div>
       ) : (

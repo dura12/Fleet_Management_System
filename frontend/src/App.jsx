@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { Routes, Route, Navigate, Link, useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import { RequestUiProvider, useRequestUi } from './context/RequestUiContext';
+import { NotificationProvider } from './context/NotificationContext';
 import Navbar from './components/Navbar';
 import Login from './pages/Login';
 import RequestsList from './pages/RequestsList';
@@ -59,20 +60,22 @@ function AuthenticatedApp() {
   const { user } = useAuth();
   return (
     <RequestUiProvider>
-      <div className="app-shell">
-        <Navbar />
-        <div className={user.role === 'employee' ? 'container employee-container' : user.role === 'manager' ? 'container manager-container' : user.role === 'fleet_coordinator' ? 'container coordinator-container' : user.role === 'admin' ? 'container admin-container' : 'container'}>
-          <Routes>
-            <Route path="/" element={<RequestsList />} />
-            <Route path="/requests/new" element={<Protected roles={['employee']}><OpenCreateModalRedirect /></Protected>} />
-            <Route path="/requests/:id" element={<OpenDetailModalRedirect />} />
-            <Route path="/vehicles" element={<Protected roles={['admin', 'manager', 'fleet_coordinator']}><Vehicles /></Protected>} />
-            <Route path="/drivers" element={<Protected roles={['admin', 'manager', 'fleet_coordinator']}><Drivers /></Protected>} />
-            <Route path="/reports" element={<Protected roles={['admin', 'manager', 'fleet_coordinator']}><Reports /></Protected>} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
+      <NotificationProvider>
+        <div className="app-shell">
+          <Navbar />
+          <div className={user.role === 'employee' ? 'container employee-container' : user.role === 'manager' ? 'container manager-container' : user.role === 'fleet_coordinator' ? 'container coordinator-container' : user.role === 'admin' ? 'container admin-container' : 'container'}>
+            <Routes>
+              <Route path="/" element={<RequestsList />} />
+              <Route path="/requests/new" element={<Protected roles={['employee']}><OpenCreateModalRedirect /></Protected>} />
+              <Route path="/requests/:id" element={<OpenDetailModalRedirect />} />
+              <Route path="/vehicles" element={<Protected roles={['admin', 'manager', 'fleet_coordinator']}><Vehicles /></Protected>} />
+              <Route path="/drivers" element={<Protected roles={['admin', 'manager', 'fleet_coordinator']}><Drivers /></Protected>} />
+              <Route path="/reports" element={<Protected roles={['admin', 'manager', 'fleet_coordinator']}><Reports /></Protected>} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </div>
         </div>
-      </div>
+      </NotificationProvider>
     </RequestUiProvider>
   );
 }

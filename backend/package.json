@@ -7,7 +7,9 @@
     "start": "node dist/main.js",
     "start:dev": "nest start --watch",
     "start:build": "node dist/main.js",
-    "seed": "ts-node src/seed.ts"
+    "seed": "ts-node src/seed.ts",
+    "test": "npm run build && node --test test/trip-duration.test.js",
+    "test:api": "node scripts/api-smoke-test.mjs"
   },
   "dependencies": {
     "@nestjs/common": "^10.4.0",

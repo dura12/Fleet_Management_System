@@ -5,12 +5,14 @@ import StatusBadge from '../components/StatusBadge';
 import Modal from '../components/Modal';
 import ConfirmDialog from '../components/ConfirmDialog';
 import { readCache, writeCache } from '../utils/sessionCache';
+import { useErrorAlert } from '../context/ErrorContext';
 
 const STATUSES = ['Available', 'Assigned', 'Under Maintenance', 'Inactive'];
 const emptyForm = { vehicleId: '', plateNumber: '', model: '', vehicleType: '', seatingCapacity: 4, currentMileage: 0, status: 'Available' };
 
 export default function Vehicles() {
   const { user } = useAuth();
+  const { showError } = useErrorAlert();
   const canEdit = user.role === 'fleet_coordinator' || user.role === 'admin';
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
@@ -18,7 +20,6 @@ export default function Vehicles() {
   const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState(null);
   const [showForm, setShowForm] = useState(false);
-  const [error, setError] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(null);
 
   const load = async () => {
@@ -31,7 +32,7 @@ export default function Vehicles() {
       setVehicles(data);
       writeCache(cacheKey, data);
     } catch (err) {
-      setError(err.message);
+      showError(err);
     }
   };
 
@@ -67,7 +68,6 @@ export default function Vehicles() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
     try {
       const payload = {
         ...form,
@@ -83,18 +83,17 @@ export default function Vehicles() {
       closeForm();
       load();
     } catch (err) {
-      setError(err.message);
+      showError(err);
     }
   };
 
   const handleDelete = async (vehicle) => {
-    setError('');
     try {
       await api.deleteVehicle(vehicle._id);
       setConfirmDelete(null);
       load();
     } catch (err) {
-      setError(err.message);
+      showError(err);
     }
   };
 
@@ -120,8 +119,6 @@ export default function Vehicles() {
         )}
       </div>
 
-      {error && !showForm && <div className="error-banner">{error}</div>}
-
       <div className="filters">
         <div>
           <label>Search</label>
@@ -138,7 +135,6 @@ export default function Vehicles() {
 
       {showForm && canEdit && (
         <Modal title={editingId ? 'Edit Vehicle' : 'New Vehicle'} size="md" onClose={closeForm}>
-          {error && <div className="error-banner">{error}</div>}
           <form onSubmit={handleSubmit}>
             <div className="grid-form">
               {!editingId && (
