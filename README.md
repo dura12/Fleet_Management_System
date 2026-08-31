@@ -5,81 +5,109 @@ Implements the Fleet Management System process analyzed in Part A (`01_Business_
 
 ## Technology Used
 
-| Layer      | Technology                                   |
-|------------|-----------------------------------------------|
-| Frontend   | React 18 (Vite), React Router                 |
-| Backend    | NestJS 10 (Node.js/TypeScript)                 |
-| Database   | MongoDB (via Mongoose)                         |
-| Auth       | JWT (passport-jwt), bcrypt password hashing    |
+| Layer    | Technology                                |
+|----------|--------------------------------------------|
+| Frontend | React 18 (Vite), React Router              |
+| Backend  | NestJS 10 (Node.js / TypeScript)           |
+| Database | MongoDB (via Mongoose)                     |
+| Auth     | JWT (passport-jwt), bcrypt password hashing |
 
-**Why this stack:** NestJS gives a structured, modular backend (modules/services/
-controllers, guards, DTOs with `class-validator`) that maps cleanly onto the
-requirements and business rules from Part A, and MongoDB's flexible documents
-suit a request/approval workflow with a small, evolving schema well. React on
-the frontend keeps the UI simple and fast to build for a small role-based
-dashboard. This is also the stack I'm most comfortable with day to day, which
-let me spend more time on getting the workflow and validations right.
+**Why this stack:** NestJS provides a modular backend (modules, services, controllers, guards, DTOs with `class-validator`) that maps cleanly onto the workflow and business rules. MongoDB's flexible documents suit an evolving request/approval schema. React keeps the role-based UI fast to build and maintain.
 
 ## Project Structure
 
 ```
 fleet-management/
-├── backend/     NestJS API (MongoDB via Mongoose, JWT auth)
-├── frontend/    React (Vite) single-page app
-└── README.md    (this file)
+├── backend/              NestJS API (MongoDB, JWT auth)
+│   ├── src/              Modules: auth, users, requests, vehicles, drivers, reports, notifications, settings
+│   ├── test/             Unit tests (trip duration)
+│   └── scripts/          API smoke test
+├── frontend/             React (Vite) single-page app
+├── docs/                 ER diagram, process flow, presentation notes
+├── postman/              API collection for manual / integration testing
+└── README.md
 ```
 
 ## Roles Implemented
 
-Three roles cover the workflow end-to-end (the Part A analysis also describes
-a separate Administrator actor; here that responsibility \u2014 managing vehicle
-and driver master data \u2014 is folded into the Fleet Coordinator role to keep
-the mini-project focused):
+Four roles cover the full workflow. **Administrator** is separate from Fleet Coordinator and has additional powers (user management, status override).
 
-- **Employee** \u2014 creates, edits (while in Draft), submits, and cancels their own vehicle requests.
-- **Manager** \u2014 reviews submitted requests and approves or rejects them; can view vehicles/drivers/reports.
-- **Fleet Coordinator** \u2014 manages vehicle & driver master data, assigns vehicles/drivers to approved requests, and completes trips.
+| Role | Capabilities |
+|------|----------------|
+| **Employee** | Create/edit/submit/cancel own requests, track status, change own password, receive notifications |
+| **Manager** | Approve/reject submitted requests, view read-only fleet & drivers, reports, CSV export |
+| **Fleet Coordinator** | Assign/reassign vehicle & driver, complete trips, manage vehicles/drivers, reports |
+| **Administrator** | All coordinator/manager capabilities plus user CRUD, settings (branches, departments, destinations), status override |
+
+Drivers are **records only** — they do not log into the system.
 
 ## Workflow Implemented
 
 ```
 Draft → Submitted → Approved / Rejected → Vehicle Assigned → Completed
+         ↘ Cancelled (from Draft, Submitted, Approved, or Vehicle Assigned — vehicle released if assigned)
 ```
 
-Status transitions are enforced server-side (`ALLOWED_TRANSITIONS` in
-`backend/src/common/status.enum.ts`) so a request can never be pushed into an
-invalid state, satisfying the "invalid status transitions must be prevented"
-requirement.
+- **Rejected** is terminal; the employee must create a new request.
+- **Reassign** driver or vehicle is available while status is Vehicle Assigned (breakdown protocol marks original vehicle Under Maintenance).
+- **Administrator override** can force a status change in exceptional cases (with confirmation and notification).
 
-## Validations Implemented (Common Technical Requirements)
+Status transitions are enforced server-side (`ALLOWED_TRANSITIONS` in `backend/src/common/status.enum.ts`).
 
-- Unique Vehicle ID / plate number, unique Driver ID / license number, unique Employee ID / email.
-- Required fields enforced via `class-validator` DTOs on every endpoint.
-- A vehicle **Under Maintenance** or **Inactive** cannot be assigned (`VehiclesService.assertAssignable`).
-- An already-**Assigned** vehicle cannot be assigned to a second request.
-- A driver with an **expired license** or marked inactive cannot be assigned (`DriversService.assertAssignable`).
-- Travel date cannot be in the past; number of passengers must be at least 1.
-- Only requests in **Draft** can be edited; only **Draft**/**Submitted** requests can be cancelled.
-- Invalid status transitions are rejected with a clear error message.
-- Role-based access control on every route (`JwtAuthGuard` + `RolesGuard` + `@Roles()`).
+## Features
+
+- Role-based dashboards (Employee, Manager, Fleet Coordinator, Administrator)
+- Modal-based create/view flows; confirmation dialogs before delete, cancel, reject, and override
+- In-app **notifications** (bell + toast popups) on submit, approve, reject, assign, complete, cancel, override
+- Self-service **change password** via profile menu
+- Trip duration presets, branch/destination suggestions, department dropdown for user creation
+- **CSV export** on Reports page and Manager full report export
+- Responsive layout (mobile-friendly nav, modals, notification panel)
+- Loading skeletons while async data loads (no false “empty” flashes)
+
+## Validations (Server-Side)
+
+- Unique vehicle ID, plate number, driver ID, license number, employee ID, and email
+- Required fields enforced via `class-validator` DTOs
+- Vehicle **Under Maintenance** or **Inactive** cannot be assigned
+- Already-**Assigned** vehicle cannot be double-booked
+- Driver with **expired license** or **inactive** flag cannot be assigned
+- Vehicle **seating capacity** must meet passenger count
+- Travel date cannot be in the past; passengers must be at least 1
+- **Date overlap** blocked for the same employee on submit (and on manager approve)
+- Only **Draft** requests are editable by the employee
+- Trip cannot be **completed** before the scheduled travel date
+- Submitted requests **> 48 hours** are flagged **Overdue** (computed at read time)
+- Role-based access on every API route (`JwtAuthGuard` + `RolesGuard` + `@Roles()`)
 
 ## Reports
 
-- **Vehicle Register** \u2014 full vehicle list with current status.
-- **Requests by Status** \u2014 requests grouped by workflow stage.
-- **Assignment History** \u2014 every vehicle/driver assignment made, with request and requester detail.
+- **Vehicle Register** — full fleet list with status
+- **Requests by Status** — requests grouped by workflow stage
+- **Assignment History** — all assignments with request and requester detail
 
-## Search & Filtering
+Each report supports **Download CSV**.
 
-- Vehicles: filter by status, search by plate/model/ID.
-- Drivers: search by name/license/ID.
-- Requests: filter by status (and, for managers/coordinators, by requester or date range via the API).
+## API Overview
+
+| Group | Endpoints |
+|-------|-----------|
+| `/auth` | Login, change password |
+| `/users` | User management (admin) |
+| `/requests` | Create, submit, approve, reject, assign, reassign, complete, cancel, override |
+| `/vehicles`, `/drivers` | Master data CRUD |
+| `/reports` | Three report endpoints |
+| `/notifications` | List, unread count, mark read |
+| `/branches`, `/departments`, `/destinations` | Settings lookups (admin) |
+
+Postman collection: `postman/collections/Fleet-Management-API.postman_collection.json`
 
 ## Setup & Running Locally
 
 ### Prerequisites
+
 - Node.js 18+
-- A running MongoDB instance (local install, or a free MongoDB Atlas cluster)
+- MongoDB (local or MongoDB Atlas)
 
 ### 1. Backend
 
@@ -87,46 +115,61 @@ requirement.
 cd backend
 cp .env.example .env      # edit MONGODB_URI / JWT_SECRET if needed
 npm install
-npm run seed               # creates demo users, vehicles, and drivers
-npm run start:dev          # runs on http://localhost:3000/api
+npm run seed              # demo users, vehicles, drivers, lookups
+npm run start:dev         # http://localhost:3000/api
 ```
-
-Demo accounts created by the seed script (password for all: `Password123`):
-
-| Role              | Email                  |
-|-------------------|-------------------------|
-| Employee          | employee@otech.com      |
-| Manager           | manager@otech.com       |
-| Fleet Coordinator | fleet@otech.com          |
-
-The seed data intentionally includes one vehicle **Under Maintenance** and one
-driver with an **expired license**, so the assignment validations can be
-demonstrated immediately.
 
 ### 2. Frontend
 
 ```bash
 cd frontend
-cp .env.example .env       # points to the backend at http://localhost:3000/api
+cp .env.example .env      # VITE_API_URL=http://localhost:3000/api
 npm install
-npm run dev                # runs on http://localhost:5173
+npm run dev               # http://localhost:5173
 ```
 
-Open http://localhost:5173, log in with one of the demo accounts above, and
-walk through the workflow: create a request as Employee → approve as Manager
-→ assign a vehicle/driver as Fleet Coordinator → mark it Completed.
+### Demo accounts (password for all: `Password123`)
 
-## A Note on Testing in This Environment
+| Role              | Email               |
+|-------------------|---------------------|
+| Employee          | employee@otech.com  |
+| Manager           | manager@otech.com   |
+| Fleet Coordinator | fleet@otech.com     |
+| Administrator     | admin@otech.com     |
 
-This project was built and type-checked (`tsc --noEmit` for the backend,
-`vite build` for the frontend) in a sandboxed environment without an
-available MongoDB server, so it hasn't been smoke-tested against a live
-database here. Both parts compile/build without errors; please let me know if
-anything doesn't behave as expected once run against a real MongoDB instance
-and I'll fix it promptly.
+The seed data includes one vehicle **Under Maintenance** and one driver with an **expired license** so assignment validations can be demonstrated immediately.
 
-## Known Simplifications
+### Suggested demo walkthrough
 
-- Drivers are records managed by the Fleet Coordinator, not system users who log in themselves (flagged as a clarification question in Part A).
-- Request numbers/assignment IDs are generated sequentially from a document count rather than a dedicated counter collection \u2014 fine for a single-user demo, but a production system would use an atomic counter to avoid a race condition under concurrent writes.
-- No email/notification system \u2014 status changes are only visible in-app.
+1. **Employee** — create and submit a trip request
+2. **Manager** — approve (notification toast appears)
+3. **Fleet Coordinator** — assign vehicle and driver, then complete trip (on/after travel date)
+4. **Administrator** — view users, settings tab, or status override if needed
+
+## Testing
+
+```bash
+cd backend
+npm test                  # unit tests (trip duration)
+npm run test:api          # API smoke test (server must be running)
+```
+
+Frontend: manual UI testing via the demo walkthrough above. Postman collection covers the main API flows including a happy-path workflow folder.
+
+## Documentation
+
+| File | Description |
+|------|-------------|
+| `docs/6.3-er-diagram.md` | Entity-relationship model |
+| `docs/er-diagram.svg` | ER diagram (visual) |
+| `docs/process-flow-diagram.svg` | Process flow (visual) |
+| `docs/presentation-short.md` | Short presentation deck (14 slides) |
+
+## Known Simplifications / Future Scope
+
+- **In-app notifications only** — email/SMS is out of scope for this pilot
+- Drivers are managed records, not system users with login
+- Request/assignment IDs use document-count sequencing (production would use an atomic counter)
+- No Swagger/OpenAPI UI, frontend unit tests, or CI/CD pipeline in this submission
+
+Future enhancements: email/SMS alerts, driver mobile app, automated maintenance scheduling, mileage logging on completion, manager hierarchy for approvals.
