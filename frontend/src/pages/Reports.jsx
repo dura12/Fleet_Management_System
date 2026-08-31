@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api/client';
 import StatusBadge from '../components/StatusBadge';
+import LoadingSkeleton from '../components/LoadingSkeleton';
 import { readCache, writeCache } from '../utils/sessionCache';
 import { useErrorAlert } from '../context/ErrorContext';
 import { formatDateRange, formatTripDuration } from '../utils/requestForm';
@@ -32,6 +33,7 @@ export default function Reports({ embedded = false }) {
   cacheRef.current = cache;
 
   const data = cache[tab];
+  const isLoading = data === undefined;
 
   useEffect(() => {
     if (cacheRef.current[tab] != null) return undefined;
@@ -49,7 +51,11 @@ export default function Reports({ embedded = false }) {
         }
       })
       .catch((err) => {
-        if (!cancelled) showError(err);
+        if (!cancelled) {
+          showError(err);
+          const empty = tab === 'requests-by-status' ? {} : [];
+          setCache((prev) => ({ ...prev, [tab]: empty }));
+        }
       });
 
     return () => { cancelled = true; };
@@ -115,7 +121,7 @@ export default function Reports({ embedded = false }) {
         <button
           type="button"
           className="btn secondary reports-download-btn"
-          disabled={downloading}
+          disabled={downloading || isLoading}
           onClick={downloadReport}
         >
           {downloading ? 'Downloading…' : 'Download CSV'}
@@ -126,7 +132,9 @@ export default function Reports({ embedded = false }) {
         {!embedded && activeTab && (
           <h2 className="reports-card-title">{activeTab.label}</h2>
         )}
-        {tab === 'vehicle-register' ? (
+        {isLoading ? (
+          <LoadingSkeleton variant="reports" />
+        ) : tab === 'vehicle-register' ? (
           <VehicleRegisterTable data={data} />
         ) : tab === 'requests-by-status' ? (
           <RequestsByStatusTable data={data} />
