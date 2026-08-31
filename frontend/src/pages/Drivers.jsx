@@ -3,6 +3,7 @@ import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import Modal from '../components/Modal';
 import ConfirmDialog from '../components/ConfirmDialog';
+import LoadingSkeleton from '../components/LoadingSkeleton';
 import { readCache, writeCache } from '../utils/sessionCache';
 import { useErrorAlert } from '../context/ErrorContext';
 
@@ -17,7 +18,8 @@ export default function Drivers() {
   const { showError } = useErrorAlert();
   const canEdit = user.role === 'fleet_coordinator' || user.role === 'admin';
   const [search, setSearch] = useState('');
-  const [drivers, setDrivers] = useState(() => readCache('drivers:', []));
+  const [drivers, setDrivers] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState(null);
   const [showForm, setShowForm] = useState(false);
@@ -25,6 +27,14 @@ export default function Drivers() {
 
   const load = async () => {
     const cacheKey = `drivers:${search}`;
+    const cached = readCache(cacheKey, null);
+    if (cached != null) {
+      setDrivers(cached);
+      setLoading(false);
+    } else {
+      setDrivers(null);
+      setLoading(true);
+    }
     try {
       const params = {};
       if (search) params.search = search;
@@ -33,6 +43,9 @@ export default function Drivers() {
       writeCache(cacheKey, data);
     } catch (err) {
       showError(err);
+      if (cached == null) setDrivers([]);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -155,7 +168,9 @@ export default function Drivers() {
       )}
 
       <div className="card table-scroll">
-        {drivers.length === 0 ? (
+        {loading ? (
+          <LoadingSkeleton variant="data-table" columns={canEdit ? 6 : 5} />
+        ) : drivers.length === 0 ? (
           <div className="empty-state">🧑‍✈️ No drivers found.</div>
         ) : (
           <table className="responsive-table">

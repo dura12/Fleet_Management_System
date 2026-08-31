@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import StatusBadge from '../components/StatusBadge';
 import Modal from '../components/Modal';
 import ConfirmDialog from '../components/ConfirmDialog';
+import LoadingSkeleton from '../components/LoadingSkeleton';
 import { readCache, writeCache } from '../utils/sessionCache';
 import { useErrorAlert } from '../context/ErrorContext';
 
@@ -16,7 +17,8 @@ export default function Vehicles() {
   const canEdit = user.role === 'fleet_coordinator' || user.role === 'admin';
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
-  const [vehicles, setVehicles] = useState(() => readCache('vehicles::', []));
+  const [vehicles, setVehicles] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState(null);
   const [showForm, setShowForm] = useState(false);
@@ -24,6 +26,14 @@ export default function Vehicles() {
 
   const load = async () => {
     const cacheKey = `vehicles:${search}:${status}`;
+    const cached = readCache(cacheKey, null);
+    if (cached != null) {
+      setVehicles(cached);
+      setLoading(false);
+    } else {
+      setVehicles(null);
+      setLoading(true);
+    }
     try {
       const params = {};
       if (search) params.search = search;
@@ -33,6 +43,9 @@ export default function Vehicles() {
       writeCache(cacheKey, data);
     } catch (err) {
       showError(err);
+      if (cached == null) setVehicles([]);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -179,7 +192,9 @@ export default function Vehicles() {
       )}
 
       <div className="card table-scroll">
-        {vehicles.length === 0 ? (
+        {loading ? (
+          <LoadingSkeleton variant="data-table" columns={canEdit ? 8 : 7} />
+        ) : vehicles.length === 0 ? (
           <div className="empty-state">🚗 No vehicles found.</div>
         ) : (
           <table className="responsive-table">

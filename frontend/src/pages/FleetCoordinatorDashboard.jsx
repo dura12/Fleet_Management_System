@@ -79,7 +79,7 @@ export default function FleetCoordinatorDashboard() {
   const [assignments, setAssignments] = useState(cached?.assignments ?? {});
   const [stats, setStats] = useState(cached?.stats ?? null);
   const { showError } = useErrorAlert();
-  const loading = requests === null;
+  const loading = requests === null || vehicles === null || drivers === null;
   const [search, setSearch] = useState('');
   const [queueFilter, setQueueFilter] = useState('');
   const [vehicleFilter, setVehicleFilter] = useState('Available');
